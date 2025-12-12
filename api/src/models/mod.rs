@@ -1,4 +1,5 @@
 pub mod control;
+pub mod evidence;
 pub mod framework;
 
 use serde::{Deserialize, Serialize};
@@ -38,4 +39,10 @@ pub use control::{
     Control, ControlWithMappings, MappedRequirement, ControlRequirementMapping,
     CreateControl, UpdateControl, ControlTest, CreateControlTest, UpdateControlTest,
     ControlTestResult, CreateTestResult, ListControlsQuery, ControlStats,
+};
+
+pub use evidence::{
+    Evidence, EvidenceWithLinks, LinkedControl, EvidenceControlLink,
+    CreateEvidence, UpdateEvidence, ListEvidenceQuery, EvidenceStats,
+    TypeCount, SourceCount,
 };
