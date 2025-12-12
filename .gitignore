@@ -1,0 +1,48 @@
+# Rust
+target/
+Cargo.lock
+*.rs.bk
+
+# Node
+node_modules/
+.next/
+out/
+.npm
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Build
+dist/
+build/
+
+# Testing
+coverage/
+
+# Docker
+.docker/
+
+# Misc
+*.pem
+*.key
+.turbo
