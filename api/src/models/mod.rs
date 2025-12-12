@@ -1,6 +1,8 @@
 pub mod control;
 pub mod evidence;
 pub mod framework;
+pub mod policy;
+pub mod risk;
 
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -45,4 +47,15 @@ pub use evidence::{
     Evidence, EvidenceWithLinks, LinkedControl, EvidenceControlLink,
     CreateEvidence, UpdateEvidence, ListEvidenceQuery, EvidenceStats,
     TypeCount, SourceCount,
+};
+
+pub use policy::{
+    Policy, PolicyVersion, PolicyAcknowledgment, PolicyWithStats,
+    CreatePolicy, UpdatePolicy, ListPoliciesQuery, PolicyStats, CategoryCount,
+};
+
+pub use risk::{
+    Risk, RiskWithControls, LinkedControlSummary, RiskControlMapping,
+    CreateRisk, UpdateRisk, ListRisksQuery, RiskStats, StatusCount, RiskCategoryCount,
+    LinkControlsRequest,
 };
