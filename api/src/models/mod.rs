@@ -1,3 +1,4 @@
+pub mod control;
 pub mod framework;
 
 use serde::{Deserialize, Serialize};
@@ -31,4 +32,10 @@ pub struct User {
 pub use framework::{
     Framework, FrameworkRequirement, CreateFramework, UpdateFramework,
     CreateFrameworkRequirement, UpdateFrameworkRequirement, FrameworkWithRequirements,
+};
+
+pub use control::{
+    Control, ControlWithMappings, MappedRequirement, ControlRequirementMapping,
+    CreateControl, UpdateControl, ControlTest, CreateControlTest, UpdateControlTest,
+    ControlTestResult, CreateTestResult, ListControlsQuery, ControlStats,
 };

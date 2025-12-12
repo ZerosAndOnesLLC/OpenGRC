@@ -105,7 +105,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "0.2.0"
+  "version": "0.3.0"
 }
 ```
 
@@ -195,10 +195,12 @@ api/
     │   └── integrations.rs   # Integration management (placeholder)
     ├── models/
     │   ├── mod.rs            # Database models (Organization, User, etc.)
-    │   └── framework.rs      # Framework & requirement models
+    │   ├── framework.rs      # Framework & requirement models
+    │   └── control.rs        # Control, test & mapping models
     ├── services/
     │   ├── mod.rs            # Business logic layer with AppServices
-    │   └── framework.rs      # Framework service with caching
+    │   ├── framework.rs      # Framework service with caching
+    │   └── control.rs        # Control service with caching
     ├── middleware/
     │   ├── mod.rs            # Middleware exports
     │   ├── auth.rs           # JWT validation with TitaniumVault
@@ -223,12 +225,22 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 #### Authentication
 - `GET /api/v1/auth/me` - Get current authenticated user
 
-#### Controls
-- `GET /api/v1/controls` - List controls
-- `GET /api/v1/controls/:id` - Get control by ID
+#### Controls (Implemented)
+- `GET /api/v1/controls` - List controls (supports `?status=`, `?control_type=`, `?owner_id=`, `?search=`, `?limit=`, `?offset=`)
+- `GET /api/v1/controls/stats` - Get control statistics (total, implemented, in_progress, etc.)
+- `GET /api/v1/controls/:id` - Get control with mapped requirements
 - `POST /api/v1/controls` - Create control
 - `PUT /api/v1/controls/:id` - Update control
-- `DELETE /api/v1/controls/:id` - Delete control
+- `DELETE /api/v1/controls/:id` - Delete control (fails if evidence linked)
+
+#### Control Requirement Mappings (Implemented)
+- `POST /api/v1/controls/:id/requirements` - Map control to framework requirements
+- `DELETE /api/v1/controls/:id/requirements` - Unmap requirements from control
+
+#### Control Tests (Implemented)
+- `GET /api/v1/controls/:id/tests` - List tests for a control
+- `POST /api/v1/controls/:id/tests` - Create a control test
+- `POST /api/v1/controls/:control_id/tests/:test_id/results` - Record test result
 
 #### Evidence
 - `GET /api/v1/evidence` - List evidence
@@ -440,13 +452,14 @@ Structured JSON logging is enabled by default:
 
 1. ~~Implement database migrations for all entities~~ ✓
 2. ~~Implement Framework routes with caching~~ ✓
-3. Implement Controls, Evidence, Policies, Risks routes
-4. Build Dashboard API endpoints
-5. Add comprehensive tests (unit, integration, e2e)
-6. Add more middleware (rate limiting, request ID, etc.)
-7. Implement integration framework for cloud providers
-8. Add OpenAPI/Swagger documentation
-9. Set up CI/CD pipelines
+3. ~~Implement Controls routes with tests and mappings~~ ✓
+4. Implement Evidence, Policies, Risks routes
+5. Build Dashboard API endpoints
+6. Add comprehensive tests (unit, integration, e2e)
+7. Add more middleware (rate limiting, request ID, etc.)
+8. Implement integration framework for cloud providers
+9. Add OpenAPI/Swagger documentation
+10. Set up CI/CD pipelines
 
 ## Contributing
 
