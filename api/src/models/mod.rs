@@ -1,8 +1,11 @@
+pub mod asset;
+pub mod audit;
 pub mod control;
 pub mod evidence;
 pub mod framework;
 pub mod policy;
 pub mod risk;
+pub mod vendor;
 
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -58,4 +61,20 @@ pub use risk::{
     Risk, RiskWithControls, LinkedControlSummary, RiskControlMapping,
     CreateRisk, UpdateRisk, ListRisksQuery, RiskStats, StatusCount, RiskCategoryCount,
     LinkControlsRequest,
+};
+
+pub use vendor::{
+    Vendor, VendorWithAssessment, VendorAssessment, CreateVendor, UpdateVendor,
+    CreateVendorAssessment, ListVendorsQuery, VendorStats, CriticalityCount, VendorCategoryCount,
+};
+
+pub use asset::{
+    Asset, AssetWithControls, AssetControlMapping, CreateAsset, UpdateAsset,
+    ListAssetsQuery, AssetStats, AssetTypeCount, ClassificationCount, AssetStatusCount,
+};
+
+pub use audit::{
+    Audit, AuditWithStats, AuditRequest, AuditRequestResponse, AuditFinding,
+    CreateAudit, UpdateAudit, CreateAuditRequest, CreateAuditFinding, UpdateAuditFinding,
+    CreateRequestResponse, ListAuditsQuery, AuditStats, AuditTypeCount,
 };
