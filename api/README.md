@@ -105,7 +105,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }
 ```
 
@@ -172,7 +172,8 @@ api/
 ├── .env.example               # Environment variable template
 ├── README.md                  # This file
 ├── migrations/                # SQLx database migrations
-│   └── .gitkeep
+│   ├── 20251212184023_initial_schema.sql
+│   └── 20251212204426_seed_soc2_framework.sql
 └── src/
     ├── main.rs                # Server startup and graceful shutdown
     ├── lib.rs                 # Module exports
@@ -181,7 +182,9 @@ api/
     ├── routes/
     │   ├── mod.rs            # Router setup and route registration
     │   ├── health.rs         # Health check endpoint
+    │   ├── sso.rs            # SSO authentication routes
     │   ├── auth.rs           # TitaniumVault authentication
+    │   ├── frameworks.rs     # Framework & requirements (IMPLEMENTED)
     │   ├── controls.rs       # Controls CRUD (placeholder)
     │   ├── evidence.rs       # Evidence management (placeholder)
     │   ├── policies.rs       # Policy management (placeholder)
@@ -189,12 +192,13 @@ api/
     │   ├── vendors.rs        # Vendor management (placeholder)
     │   ├── assets.rs         # Asset management (placeholder)
     │   ├── audits.rs         # Audit management (placeholder)
-    │   ├── integrations.rs   # Integration management (placeholder)
-    │   └── frameworks.rs     # Framework & requirements (placeholder)
+    │   └── integrations.rs   # Integration management (placeholder)
     ├── models/
-    │   └── mod.rs            # Database models (Organization, User, etc.)
+    │   ├── mod.rs            # Database models (Organization, User, etc.)
+    │   └── framework.rs      # Framework & requirement models
     ├── services/
-    │   └── mod.rs            # Business logic layer
+    │   ├── mod.rs            # Business logic layer with AppServices
+    │   └── framework.rs      # Framework service with caching
     ├── middleware/
     │   ├── mod.rs            # Middleware exports
     │   ├── auth.rs           # JWT validation with TitaniumVault
@@ -275,14 +279,24 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 - `PUT /api/v1/integrations/:id` - Update integration
 - `DELETE /api/v1/integrations/:id` - Delete integration
 
-#### Frameworks
-- `GET /api/v1/frameworks` - List frameworks
-- `GET /api/v1/frameworks/:id` - Get framework by ID
+#### Frameworks (Implemented)
+- `GET /api/v1/frameworks` - List frameworks (supports `?category=` and `?is_system=` filters)
+- `GET /api/v1/frameworks/:id` - Get framework with all requirements
 - `POST /api/v1/frameworks` - Create framework
-- `PUT /api/v1/frameworks/:id` - Update framework
-- `DELETE /api/v1/frameworks/:id` - Delete framework
+- `PUT /api/v1/frameworks/:id` - Update framework (cannot modify system frameworks)
+- `DELETE /api/v1/frameworks/:id` - Delete framework (cannot delete system frameworks)
 
-**Note**: Most endpoint implementations are currently placeholders. They return stub responses and need to be implemented with actual business logic.
+#### Framework Requirements (Implemented)
+- `GET /api/v1/frameworks/:framework_id/requirements` - List requirements (supports `?tree=true` for hierarchical view)
+- `GET /api/v1/frameworks/:framework_id/requirements/:id` - Get requirement by ID
+- `POST /api/v1/frameworks/:framework_id/requirements` - Create requirement
+- `POST /api/v1/frameworks/:framework_id/requirements/batch` - Batch create requirements
+- `PUT /api/v1/frameworks/:framework_id/requirements/:id` - Update requirement
+- `DELETE /api/v1/frameworks/:framework_id/requirements/:id` - Delete requirement
+
+**Included Frameworks**: SOC 2 Trust Service Criteria (2017) with all 64 requirements across Security, Availability, Processing Integrity, Confidentiality, and Privacy categories.
+
+**Note**: Most other endpoint implementations are currently placeholders. They return stub responses and need to be implemented with actual business logic.
 
 ## Architecture
 
@@ -424,14 +438,15 @@ Structured JSON logging is enabled by default:
 
 ## Next Steps
 
-1. Implement database migrations for all entities
-2. Implement route handlers with actual business logic
-3. Add comprehensive tests (unit, integration, e2e)
-4. Implement service layer with business logic
-5. Add more middleware (rate limiting, request ID, etc.)
-6. Implement integration framework
-7. Add OpenAPI/Swagger documentation
-8. Set up CI/CD pipelines
+1. ~~Implement database migrations for all entities~~ ✓
+2. ~~Implement Framework routes with caching~~ ✓
+3. Implement Controls, Evidence, Policies, Risks routes
+4. Build Dashboard API endpoints
+5. Add comprehensive tests (unit, integration, e2e)
+6. Add more middleware (rate limiting, request ID, etc.)
+7. Implement integration framework for cloud providers
+8. Add OpenAPI/Swagger documentation
+9. Set up CI/CD pipelines
 
 ## Contributing
 

@@ -108,6 +108,12 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/frameworks", post(frameworks::create_framework))
         .route("/api/v1/frameworks/:id", put(frameworks::update_framework))
         .route("/api/v1/frameworks/:id", delete(frameworks::delete_framework))
+        .route("/api/v1/frameworks/:framework_id/requirements", get(frameworks::list_requirements))
+        .route("/api/v1/frameworks/:framework_id/requirements/:id", get(frameworks::get_requirement))
+        .route("/api/v1/frameworks/:framework_id/requirements", post(frameworks::create_requirement))
+        .route("/api/v1/frameworks/:framework_id/requirements/batch", post(frameworks::batch_create_requirements))
+        .route("/api/v1/frameworks/:framework_id/requirements/:id", put(frameworks::update_requirement))
+        .route("/api/v1/frameworks/:framework_id/requirements/:id", delete(frameworks::delete_requirement))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

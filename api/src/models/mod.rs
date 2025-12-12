@@ -1,3 +1,5 @@
+pub mod framework;
+
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -25,3 +27,8 @@ pub struct User {
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
+
+pub use framework::{
+    Framework, FrameworkRequirement, CreateFramework, UpdateFramework,
+    CreateFrameworkRequirement, UpdateFrameworkRequirement, FrameworkWithRequirements,
+};
