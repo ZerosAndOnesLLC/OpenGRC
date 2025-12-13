@@ -151,6 +151,12 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/integrations/:id/test", post(integrations::test_connection))
         .route("/api/v1/integrations/:id/sync", post(integrations::trigger_sync))
         .route("/api/v1/integrations/:id/logs", get(integrations::get_sync_logs))
+        // Integration Health Monitoring
+        .route("/api/v1/integrations/health", get(integrations::get_all_health))
+        .route("/api/v1/integrations/health/stats", get(integrations::get_health_stats))
+        .route("/api/v1/integrations/health/failures", get(integrations::get_recent_failures))
+        .route("/api/v1/integrations/health/trend", get(integrations::get_health_trend))
+        .route("/api/v1/integrations/:id/health", get(integrations::get_integration_health))
         .route("/api/v1/frameworks", get(frameworks::list_frameworks))
         .route("/api/v1/frameworks/:id", get(frameworks::get_framework))
         .route("/api/v1/frameworks", post(frameworks::create_framework))

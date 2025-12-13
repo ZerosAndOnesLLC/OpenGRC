@@ -86,4 +86,7 @@ pub use integration::{
     SyncStatus, CreateIntegration, UpdateIntegration, ListIntegrationsQuery, IntegrationStats,
     IntegrationTypeCount, AvailableIntegration, TestConnectionResult, TriggerSyncRequest,
     get_available_integrations,
+    // Health monitoring types
+    HealthStatus, IntegrationHealth, IntegrationHealthWithDetails, IntegrationHealthSnapshot,
+    IntegrationHealthStats, HealthTrendPoint, RecentFailure,
 };

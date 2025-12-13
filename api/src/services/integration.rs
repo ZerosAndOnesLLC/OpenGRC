@@ -1,8 +1,10 @@
 use crate::cache::{org_cache_key, CacheClient};
 use crate::integrations::{IntegrationProvider, IntegrationRegistry, SyncResult};
 use crate::models::{
-    CreateIntegration, Integration, IntegrationStats, IntegrationSyncLog, IntegrationTypeCount,
-    IntegrationWithStats, ListIntegrationsQuery, TestConnectionResult, UpdateIntegration,
+    CreateIntegration, HealthTrendPoint, Integration, IntegrationHealth, IntegrationHealthStats,
+    IntegrationHealthWithDetails, IntegrationStats, IntegrationSyncLog, IntegrationTypeCount,
+    IntegrationWithStats, ListIntegrationsQuery, RecentFailure, TestConnectionResult,
+    UpdateIntegration,
 };
 use crate::utils::{AppError, AppResult, EncryptionService};
 use sqlx::PgPool;
@@ -589,5 +591,341 @@ impl IntegrationService {
         // Invalidate stats cache
         let stats_key = org_cache_key(&org_id.to_string(), CACHE_PREFIX_INTEGRATION_STATS, "summary");
         self.cache.delete(&stats_key).await
+    }
+
+    // ==================== Health Monitoring ====================
+
+    /// Get health status for all integrations
+    pub async fn get_all_health(
+        &self,
+        org_id: Uuid,
+    ) -> AppResult<Vec<IntegrationHealthWithDetails>> {
+        // Get integrations first
+        let integrations = sqlx::query_as::<_, Integration>(
+            r#"
+            SELECT id, organization_id, integration_type, name, config, status,
+                   last_sync_at, last_error, created_at, updated_at
+            FROM integrations
+            WHERE organization_id = $1
+            ORDER BY name ASC
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        if integrations.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Get health records for all integrations
+        let integration_ids: Vec<Uuid> = integrations.iter().map(|i| i.id).collect();
+
+        let health_records = sqlx::query_as::<_, IntegrationHealth>(
+            r#"
+            SELECT
+                id, integration_id, status::text as status,
+                last_successful_sync_at, consecutive_failures,
+                sync_success_count_24h, sync_failure_count_24h,
+                average_sync_duration_ms,
+                sync_success_count_7d, sync_failure_count_7d,
+                last_check_at, last_check_message,
+                last_error_at, last_error_message,
+                created_at, updated_at
+            FROM integration_health
+            WHERE integration_id = ANY($1)
+            "#,
+        )
+        .bind(&integration_ids)
+        .fetch_all(&self.db)
+        .await?;
+
+        // Create a map for quick lookup
+        let health_map: std::collections::HashMap<Uuid, IntegrationHealth> = health_records
+            .into_iter()
+            .map(|h| (h.integration_id, h))
+            .collect();
+
+        // Build result with health data, sorted by status severity
+        let mut result: Vec<IntegrationHealthWithDetails> = integrations
+            .into_iter()
+            .map(|integration| {
+                let health = health_map.get(&integration.id).cloned().unwrap_or_else(|| {
+                    // Create a default unknown health record
+                    IntegrationHealth {
+                        id: Uuid::nil(),
+                        integration_id: integration.id,
+                        status: "unknown".to_string(),
+                        last_successful_sync_at: None,
+                        consecutive_failures: 0,
+                        sync_success_count_24h: 0,
+                        sync_failure_count_24h: 0,
+                        average_sync_duration_ms: None,
+                        sync_success_count_7d: 0,
+                        sync_failure_count_7d: 0,
+                        last_check_at: None,
+                        last_check_message: None,
+                        last_error_at: None,
+                        last_error_message: None,
+                        created_at: chrono::Utc::now(),
+                        updated_at: chrono::Utc::now(),
+                    }
+                });
+
+                let success_rate_24h = health.success_rate_24h();
+                let success_rate_7d = health.success_rate_7d();
+
+                IntegrationHealthWithDetails {
+                    integration_id: integration.id,
+                    integration_name: integration.name,
+                    integration_type: integration.integration_type,
+                    health,
+                    success_rate_24h,
+                    success_rate_7d,
+                }
+            })
+            .collect();
+
+        // Sort by status severity (unhealthy first, then degraded, unknown, healthy)
+        result.sort_by(|a, b| {
+            let status_order = |s: &str| match s {
+                "unhealthy" => 0,
+                "degraded" => 1,
+                "unknown" => 2,
+                _ => 3,
+            };
+            status_order(&a.health.status).cmp(&status_order(&b.health.status))
+        });
+
+        Ok(result)
+    }
+
+    /// Get health for a specific integration
+    pub async fn get_integration_health(
+        &self,
+        org_id: Uuid,
+        integration_id: Uuid,
+    ) -> AppResult<IntegrationHealthWithDetails> {
+        // Verify integration belongs to org
+        let integration = self.get_integration(org_id, integration_id).await?;
+
+        let health = sqlx::query_as::<_, IntegrationHealth>(
+            r#"
+            SELECT
+                id, integration_id, status::text as status,
+                last_successful_sync_at, consecutive_failures,
+                sync_success_count_24h, sync_failure_count_24h,
+                average_sync_duration_ms,
+                sync_success_count_7d, sync_failure_count_7d,
+                last_check_at, last_check_message,
+                last_error_at, last_error_message,
+                created_at, updated_at
+            FROM integration_health
+            WHERE integration_id = $1
+            "#,
+        )
+        .bind(integration_id)
+        .fetch_optional(&self.db)
+        .await?
+        .ok_or_else(|| {
+            AppError::NotFound(format!("Health record not found for integration {}", integration_id))
+        })?;
+
+        let success_rate_24h = health.success_rate_24h();
+        let success_rate_7d = health.success_rate_7d();
+
+        Ok(IntegrationHealthWithDetails {
+            integration_id,
+            integration_name: integration.integration.name,
+            integration_type: integration.integration.integration_type,
+            health,
+            success_rate_24h,
+            success_rate_7d,
+        })
+    }
+
+    /// Get aggregated health statistics
+    pub async fn get_health_stats(&self, org_id: Uuid) -> AppResult<IntegrationHealthStats> {
+        let cache_key = org_cache_key(&org_id.to_string(), "integration:health", "stats");
+
+        // Try cache first
+        if let Some(cached) = self.cache.get::<IntegrationHealthStats>(&cache_key).await? {
+            return Ok(cached);
+        }
+
+        let row: (i64, i64, i64, i64, i64, i64, i64, i64, i64, Option<i32>) = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(DISTINCT i.id) as total_integrations,
+                COUNT(*) FILTER (WHERE h.status = 'healthy') as healthy_count,
+                COUNT(*) FILTER (WHERE h.status = 'degraded') as degraded_count,
+                COUNT(*) FILTER (WHERE h.status = 'unhealthy') as unhealthy_count,
+                COUNT(*) FILTER (WHERE h.status = 'unknown' OR h.status IS NULL) as unknown_count,
+                COALESCE(SUM(h.sync_success_count_24h), 0) as total_success_24h,
+                COALESCE(SUM(h.sync_failure_count_24h), 0) as total_failure_24h,
+                COALESCE(SUM(h.sync_success_count_7d), 0) as total_success_7d,
+                COALESCE(SUM(h.sync_failure_count_7d), 0) as total_failure_7d,
+                AVG(h.average_sync_duration_ms)::integer as avg_duration
+            FROM integrations i
+            LEFT JOIN integration_health h ON i.id = h.integration_id
+            WHERE i.organization_id = $1
+            "#,
+        )
+        .bind(org_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        let total_24h = row.5 + row.6;
+        let total_7d = row.7 + row.8;
+
+        let stats = IntegrationHealthStats {
+            total_integrations: row.0,
+            healthy_count: row.1,
+            degraded_count: row.2,
+            unhealthy_count: row.3,
+            unknown_count: row.4,
+            overall_success_rate_24h: if total_24h > 0 {
+                (row.5 as f64 / total_24h as f64) * 100.0
+            } else {
+                100.0
+            },
+            overall_success_rate_7d: if total_7d > 0 {
+                (row.7 as f64 / total_7d as f64) * 100.0
+            } else {
+                100.0
+            },
+            average_sync_duration_ms: row.9,
+            total_syncs_24h: total_24h,
+            total_failures_24h: row.6,
+        };
+
+        // Cache for 5 minutes
+        self.cache
+            .set(&cache_key, &stats, Some(Duration::from_secs(300)))
+            .await?;
+
+        Ok(stats)
+    }
+
+    /// Get recent failures for the health dashboard
+    pub async fn get_recent_failures(
+        &self,
+        org_id: Uuid,
+        limit: i64,
+    ) -> AppResult<Vec<RecentFailure>> {
+        let failures = sqlx::query_as::<_, (Uuid, String, String, Option<String>, chrono::DateTime<chrono::Utc>, i32)>(
+            r#"
+            SELECT
+                i.id as integration_id,
+                i.name as integration_name,
+                i.integration_type,
+                h.last_error_message,
+                h.last_error_at,
+                h.consecutive_failures
+            FROM integrations i
+            INNER JOIN integration_health h ON i.id = h.integration_id
+            WHERE i.organization_id = $1
+              AND h.consecutive_failures > 0
+              AND h.last_error_at IS NOT NULL
+            ORDER BY h.last_error_at DESC
+            LIMIT $2
+            "#,
+        )
+        .bind(org_id)
+        .bind(limit.min(50))
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(failures
+            .into_iter()
+            .map(|row| RecentFailure {
+                integration_id: row.0,
+                integration_name: row.1,
+                integration_type: row.2,
+                error_message: row.3,
+                failed_at: row.4,
+                consecutive_failures: row.5,
+            })
+            .collect())
+    }
+
+    /// Get health trend data for charts
+    pub async fn get_health_trend(
+        &self,
+        org_id: Uuid,
+        hours: i32,
+    ) -> AppResult<Vec<HealthTrendPoint>> {
+        // Get trend data from snapshots
+        let points = sqlx::query_as::<_, (chrono::DateTime<chrono::Utc>, i64, i64, i64, Option<rust_decimal::Decimal>)>(
+            r#"
+            WITH time_buckets AS (
+                SELECT
+                    date_trunc('hour', snapshot_at) as bucket,
+                    status,
+                    sync_success_rate
+                FROM integration_health_snapshots hs
+                INNER JOIN integrations i ON hs.integration_id = i.id
+                WHERE i.organization_id = $1
+                  AND hs.snapshot_at > NOW() - ($2 || ' hours')::interval
+            )
+            SELECT
+                bucket as timestamp,
+                COUNT(*) FILTER (WHERE status = 'healthy') as healthy_count,
+                COUNT(*) FILTER (WHERE status = 'degraded') as degraded_count,
+                COUNT(*) FILTER (WHERE status = 'unhealthy') as unhealthy_count,
+                AVG(sync_success_rate) as avg_success_rate
+            FROM time_buckets
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            "#,
+        )
+        .bind(org_id)
+        .bind(hours.to_string())
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(points
+            .into_iter()
+            .map(|row| HealthTrendPoint {
+                timestamp: row.0,
+                healthy_count: row.1,
+                degraded_count: row.2,
+                unhealthy_count: row.3,
+                success_rate: row.4.map(|d| d.to_string().parse::<f64>().unwrap_or(100.0)).unwrap_or(100.0),
+            })
+            .collect())
+    }
+
+    /// Create a health snapshot for historical tracking
+    pub async fn create_health_snapshot(&self, org_id: Uuid) -> AppResult<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO integration_health_snapshots (
+                integration_id, status, sync_success_rate,
+                average_sync_duration_ms, error_count, snapshot_at
+            )
+            SELECT
+                h.integration_id,
+                h.status,
+                CASE
+                    WHEN h.sync_success_count_24h + h.sync_failure_count_24h > 0
+                    THEN (h.sync_success_count_24h::decimal / (h.sync_success_count_24h + h.sync_failure_count_24h)) * 100
+                    ELSE 100.00
+                END as sync_success_rate,
+                h.average_sync_duration_ms,
+                h.sync_failure_count_24h as error_count,
+                NOW()
+            FROM integration_health h
+            INNER JOIN integrations i ON h.integration_id = i.id
+            WHERE i.organization_id = $1
+            "#,
+        )
+        .bind(org_id)
+        .execute(&self.db)
+        .await?;
+
+        tracing::info!("Created health snapshots for organization {}", org_id);
+
+        Ok(())
     }
 }

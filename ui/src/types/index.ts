@@ -916,6 +916,68 @@ export interface TriggerSyncRequest {
   full_sync?: boolean
 }
 
+// ==================== Integration Health ====================
+
+export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
+
+export interface IntegrationHealth {
+  id: string
+  integration_id: string
+  status: HealthStatus
+  last_successful_sync_at: string | null
+  consecutive_failures: number
+  sync_success_count_24h: number
+  sync_failure_count_24h: number
+  average_sync_duration_ms: number | null
+  sync_success_count_7d: number
+  sync_failure_count_7d: number
+  last_check_at: string | null
+  last_check_message: string | null
+  last_error_at: string | null
+  last_error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IntegrationHealthWithDetails {
+  integration_id: string
+  integration_name: string
+  integration_type: string
+  health: IntegrationHealth
+  success_rate_24h: number
+  success_rate_7d: number
+}
+
+export interface IntegrationHealthStats {
+  total_integrations: number
+  healthy_count: number
+  degraded_count: number
+  unhealthy_count: number
+  unknown_count: number
+  overall_success_rate_24h: number
+  overall_success_rate_7d: number
+  average_sync_duration_ms: number | null
+  total_syncs_24h: number
+  total_failures_24h: number
+}
+
+export interface HealthTrendPoint {
+  timestamp: string
+  healthy_count: number
+  degraded_count: number
+  unhealthy_count: number
+  success_rate: number
+}
+
+export interface RecentFailure {
+  integration_id: string
+  integration_name: string
+  integration_type: string
+  error_message: string | null
+  failed_at: string
+  consecutive_failures: number
+}
+
 // ==================== Dashboard ====================
 
 export interface DashboardStats {
@@ -953,4 +1015,28 @@ export function formatDate(dateString: string | null): string {
 export function formatDateTime(dateString: string | null): string {
   if (!dateString) return '-'
   return new Date(dateString).toLocaleString()
+}
+
+export function formatRelativeTime(dateString: string | null): string {
+  if (!dateString) return '-'
+
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSeconds = Math.floor(diffMs / 1000)
+  const diffMinutes = Math.floor(diffSeconds / 60)
+  const diffHours = Math.floor(diffMinutes / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffSeconds < 60) {
+    return 'just now'
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`
+  } else if (diffHours < 24) {
+    return `${diffHours}h ago`
+  } else if (diffDays < 7) {
+    return `${diffDays}d ago`
+  } else {
+    return formatDate(dateString)
+  }
 }

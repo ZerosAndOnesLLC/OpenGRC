@@ -218,6 +218,100 @@ pub async fn get_sync_logs(
     })))
 }
 
+// ==================== Health Monitoring ====================
+
+/// Get health for all integrations
+pub async fn get_all_health(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+    let health = services
+        .integration
+        .get_all_health(org_id)
+        .await?;
+
+    Ok(Json(json!({
+        "data": health,
+        "count": health.len()
+    })))
+}
+
+/// Get health for a specific integration
+pub async fn get_integration_health(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+    let health = services
+        .integration
+        .get_integration_health(org_id, id)
+        .await?;
+
+    Ok(Json(json!({ "data": health })))
+}
+
+/// Get aggregated health statistics
+pub async fn get_health_stats(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+    let stats = services
+        .integration
+        .get_health_stats(org_id)
+        .await?;
+
+    Ok(Json(json!({ "data": stats })))
+}
+
+/// Get recent failures
+#[derive(Debug, Deserialize, Default)]
+pub struct RecentFailuresQuery {
+    pub limit: Option<i64>,
+}
+
+pub async fn get_recent_failures(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Query(query): Query<RecentFailuresQuery>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+    let failures = services
+        .integration
+        .get_recent_failures(org_id, query.limit.unwrap_or(10))
+        .await?;
+
+    Ok(Json(json!({
+        "data": failures,
+        "count": failures.len()
+    })))
+}
+
+/// Get health trend data for charts
+#[derive(Debug, Deserialize, Default)]
+pub struct HealthTrendQuery {
+    pub hours: Option<i32>,
+}
+
+pub async fn get_health_trend(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Query(query): Query<HealthTrendQuery>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+    let trend = services
+        .integration
+        .get_health_trend(org_id, query.hours.unwrap_or(24))
+        .await?;
+
+    Ok(Json(json!({
+        "data": trend,
+        "count": trend.len()
+    })))
+}
+
 /// Mask sensitive fields in config (passwords, tokens, secrets)
 fn mask_sensitive_fields(config: &mut Value) {
     if let Value::Object(map) = config {

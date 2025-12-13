@@ -258,3 +258,35 @@ export function useIntegrationSyncLogs(integrationId: string, limit?: number) {
     { enabled: !!integrationId }
   )
 }
+
+// Integration Health hooks
+export function useIntegrationHealth() {
+  return useApi<{ data: import('@/types').IntegrationHealthWithDetails[], count: number }>(
+    '/integrations/health'
+  )
+}
+
+export function useIntegrationHealthById(integrationId: string) {
+  return useApi<{ data: import('@/types').IntegrationHealthWithDetails }>(
+    `/integrations/${integrationId}/health`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useIntegrationHealthStats() {
+  return useApi<{ data: import('@/types').IntegrationHealthStats }>(
+    '/integrations/health/stats'
+  )
+}
+
+export function useIntegrationHealthFailures(limit?: number) {
+  return useApi<{ data: import('@/types').RecentFailure[], count: number }>(
+    `/integrations/health/failures${limit ? `?limit=${limit}` : ''}`
+  )
+}
+
+export function useIntegrationHealthTrend(hours?: number) {
+  return useApi<{ data: import('@/types').HealthTrendPoint[], count: number }>(
+    `/integrations/health/trend${hours ? `?hours=${hours}` : ''}`
+  )
+}

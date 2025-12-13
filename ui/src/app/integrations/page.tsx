@@ -37,8 +37,10 @@ import {
   Shield,
   Code,
   Server,
-  Webhook
+  Webhook,
+  Activity,
 } from "lucide-react"
+import Link from "next/link"
 import { useIntegrations, useAvailableIntegrations, useIntegrationStats, useMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api-client'
 import type {
@@ -486,10 +488,18 @@ export default function IntegrationsPage() {
         title="Integrations"
         description="Connect external systems for automated evidence collection and monitoring"
         action={
-          <Button onClick={() => setAddDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Integration
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/integrations/health/">
+                <Activity className="mr-2 h-4 w-4" />
+                Health Monitor
+              </Link>
+            </Button>
+            <Button onClick={() => setAddDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Integration
+            </Button>
+          </div>
         }
       />
 

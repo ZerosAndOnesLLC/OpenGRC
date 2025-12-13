@@ -266,6 +266,141 @@ impl Integration {
     }
 }
 
+/// Health status for integrations
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HealthStatus {
+    Healthy,
+    Degraded,
+    Unhealthy,
+    Unknown,
+}
+
+impl HealthStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Healthy => "healthy",
+            Self::Degraded => "degraded",
+            Self::Unhealthy => "unhealthy",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "healthy" => Self::Healthy,
+            "degraded" => Self::Degraded,
+            "unhealthy" => Self::Unhealthy,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// Integration health record
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct IntegrationHealth {
+    pub id: Uuid,
+    pub integration_id: Uuid,
+    pub status: String,
+    pub last_successful_sync_at: Option<DateTime<Utc>>,
+    pub consecutive_failures: i32,
+    pub sync_success_count_24h: i32,
+    pub sync_failure_count_24h: i32,
+    pub average_sync_duration_ms: Option<i32>,
+    pub sync_success_count_7d: i32,
+    pub sync_failure_count_7d: i32,
+    pub last_check_at: Option<DateTime<Utc>>,
+    pub last_check_message: Option<String>,
+    pub last_error_at: Option<DateTime<Utc>>,
+    pub last_error_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl IntegrationHealth {
+    pub fn get_status(&self) -> HealthStatus {
+        HealthStatus::from_str(&self.status)
+    }
+
+    /// Calculate success rate for 24h window
+    pub fn success_rate_24h(&self) -> f64 {
+        let total = self.sync_success_count_24h + self.sync_failure_count_24h;
+        if total == 0 {
+            return 100.0;
+        }
+        (self.sync_success_count_24h as f64 / total as f64) * 100.0
+    }
+
+    /// Calculate success rate for 7d window
+    pub fn success_rate_7d(&self) -> f64 {
+        let total = self.sync_success_count_7d + self.sync_failure_count_7d;
+        if total == 0 {
+            return 100.0;
+        }
+        (self.sync_success_count_7d as f64 / total as f64) * 100.0
+    }
+}
+
+/// Integration health with integration details (for dashboard)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationHealthWithDetails {
+    pub integration_id: Uuid,
+    pub integration_name: String,
+    pub integration_type: String,
+    pub health: IntegrationHealth,
+    pub success_rate_24h: f64,
+    pub success_rate_7d: f64,
+}
+
+/// Health snapshot for trend analysis
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct IntegrationHealthSnapshot {
+    pub id: Uuid,
+    pub integration_id: Uuid,
+    pub status: String,
+    pub sync_success_rate: Option<rust_decimal::Decimal>,
+    pub average_sync_duration_ms: Option<i32>,
+    pub error_count: i32,
+    pub snapshot_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Aggregated health statistics for all integrations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationHealthStats {
+    pub total_integrations: i64,
+    pub healthy_count: i64,
+    pub degraded_count: i64,
+    pub unhealthy_count: i64,
+    pub unknown_count: i64,
+    pub overall_success_rate_24h: f64,
+    pub overall_success_rate_7d: f64,
+    pub average_sync_duration_ms: Option<i32>,
+    pub total_syncs_24h: i64,
+    pub total_failures_24h: i64,
+}
+
+/// Health trend data point for charts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthTrendPoint {
+    pub timestamp: DateTime<Utc>,
+    pub healthy_count: i64,
+    pub degraded_count: i64,
+    pub unhealthy_count: i64,
+    pub success_rate: f64,
+}
+
+/// Recent failure for display
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentFailure {
+    pub integration_id: Uuid,
+    pub integration_name: String,
+    pub integration_type: String,
+    pub error_message: Option<String>,
+    pub failed_at: DateTime<Utc>,
+    pub consecutive_failures: i32,
+}
+
 /// Get all available integration definitions
 pub fn get_available_integrations() -> Vec<AvailableIntegration> {
     vec![

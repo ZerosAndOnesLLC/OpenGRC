@@ -109,7 +109,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "1.2.0"
+  "version": "1.3.0"
 }
 ```
 
@@ -301,6 +301,26 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 - `POST /api/v1/integrations/:id/sync` - Trigger sync
 - `GET /api/v1/integrations/:id/logs` - Get sync logs
 
+##### Integration Health Monitoring (Implemented)
+- `GET /api/v1/integrations/health` - Get health for all integrations (sorted by severity)
+- `GET /api/v1/integrations/health/stats` - Get aggregated health statistics
+- `GET /api/v1/integrations/health/failures` - Get recent failures (supports `?limit=`)
+- `GET /api/v1/integrations/health/trend` - Get health trend data for charts (supports `?hours=`)
+- `GET /api/v1/integrations/:id/health` - Get health for specific integration
+
+**Health Status Types**:
+- `healthy` - Last sync successful, error rate < 5%
+- `degraded` - Last sync succeeded but error rate 5-20% or sync overdue
+- `unhealthy` - 3+ consecutive failures or error rate > 20%
+- `unknown` - Never synced
+
+**Health Metrics**:
+- Success rate (24h and 7d rolling windows)
+- Consecutive failures count
+- Average sync duration
+- Last successful sync timestamp
+- Last error message and timestamp
+
 **Supported Integration Types**: AWS, GCP, Azure, Okta, Google Workspace, Azure AD, GitHub, GitLab, Jira, Cloudflare, Datadog, PagerDuty, Webhook
 
 #### Frameworks (Implemented)
@@ -470,11 +490,13 @@ Structured JSON logging is enabled by default:
 5. ~~Build Dashboard API endpoints~~ ✓
 6. ~~Implement integration framework architecture~~ ✓ (v1.1.0)
 7. ~~Add credential encryption for integration configs~~ ✓ (v1.2.0)
-8. Implement actual integration providers (AWS, GitHub, Okta, etc.)
-9. Build scheduled sync job worker
-10. Add comprehensive tests (unit, integration, e2e)
-11. Add OpenAPI/Swagger documentation
-12. Set up CI/CD pipelines
+8. ~~Add integration health monitoring dashboard~~ ✓ (v1.3.0)
+9. Implement OAuth2 connection flow for integrations
+10. Build scheduled sync job worker (cron-based)
+11. Implement actual integration providers (AWS, GitHub, Okta, etc.)
+12. Add comprehensive tests (unit, integration, e2e)
+13. Add OpenAPI/Swagger documentation
+14. Set up CI/CD pipelines
 
 ## Contributing
 
