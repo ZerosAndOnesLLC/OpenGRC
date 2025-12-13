@@ -4,11 +4,13 @@ pub mod control;
 pub mod evidence;
 pub mod framework;
 pub mod policy;
+pub mod reports;
 pub mod risk;
 pub mod vendor;
 
 use sqlx::PgPool;
 use crate::cache::CacheClient;
+use crate::search::SearchClient;
 use crate::storage::StorageClient;
 
 pub use asset::AssetService;
@@ -17,6 +19,7 @@ pub use control::ControlService;
 pub use evidence::EvidenceService;
 pub use framework::FrameworkService;
 pub use policy::PolicyService;
+pub use reports::ReportsService;
 pub use risk::RiskService;
 pub use vendor::VendorService;
 
@@ -25,6 +28,7 @@ pub struct AppServices {
     pub db: PgPool,
     pub cache: CacheClient,
     pub storage: StorageClient,
+    pub search: SearchClient,
     pub framework: FrameworkService,
     pub control: ControlService,
     pub evidence: EvidenceService,
@@ -33,10 +37,11 @@ pub struct AppServices {
     pub vendor: VendorService,
     pub asset: AssetService,
     pub audit: AuditService,
+    pub reports: ReportsService,
 }
 
 impl AppServices {
-    pub fn new(db: PgPool, cache: CacheClient, storage: StorageClient) -> Self {
+    pub fn new(db: PgPool, cache: CacheClient, storage: StorageClient, search: SearchClient) -> Self {
         let framework = FrameworkService::new(db.clone(), cache.clone());
         let control = ControlService::new(db.clone(), cache.clone());
         let evidence = EvidenceService::new(db.clone(), cache.clone(), storage.clone());
@@ -45,6 +50,7 @@ impl AppServices {
         let vendor = VendorService::new(db.clone(), cache.clone());
         let asset = AssetService::new(db.clone(), cache.clone());
         let audit = AuditService::new(db.clone(), cache.clone());
-        Self { db, cache, storage, framework, control, evidence, policy, risk, vendor, asset, audit }
+        let reports = ReportsService::new(db.clone());
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports }
     }
 }

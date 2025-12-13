@@ -10,6 +10,7 @@ pub struct Config {
     pub titanium_vault: TitaniumVaultConfig,
     pub cors: CorsConfig,
     pub s3: S3Config,
+    pub meilisearch: MeilisearchConfig,
     pub environment: String,
 }
 
@@ -53,6 +54,13 @@ pub struct S3Config {
     pub endpoint: Option<String>,
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MeilisearchConfig {
+    pub host: String,
+    pub api_key: Option<String>,
+    pub enabled: bool,
 }
 
 impl Config {
@@ -114,6 +122,14 @@ impl Config {
                 endpoint: env::var("S3_ENDPOINT").ok(),
                 access_key_id: env::var("AWS_ACCESS_KEY_ID").ok(),
                 secret_access_key: env::var("AWS_SECRET_ACCESS_KEY").ok(),
+            },
+            meilisearch: MeilisearchConfig {
+                host: env::var("MEILISEARCH_HOST")
+                    .unwrap_or_else(|_| "http://localhost:7700".to_string()),
+                api_key: env::var("MEILISEARCH_API_KEY").ok(),
+                enabled: env::var("MEILISEARCH_ENABLED")
+                    .map(|v| v.to_lowercase() == "true")
+                    .unwrap_or(false),
             },
             environment: env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         })

@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loading } from "@/components/loading"
-import { Plus, Search, Filter, Shield, ShieldCheck, ShieldAlert, ShieldOff } from "lucide-react"
+import { ControlDetailSheet } from "@/components/control-detail-sheet"
+import { Plus, Search, Filter, Shield, ShieldCheck, ShieldAlert, ShieldOff, Link2 } from "lucide-react"
 import { useControls, useControlStats, useMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api-client'
 import type { ControlWithMappings, CreateControl, ControlStats, ControlStatus, ControlType, ControlFrequency } from '@/types'
@@ -306,6 +307,8 @@ export default function ControlsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [selectedControlId, setSelectedControlId] = useState<string | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   const query: Record<string, string | number | boolean> = {}
   if (search) query.search = search
@@ -318,6 +321,16 @@ export default function ControlsPage() {
   const handleSuccess = () => {
     refetch()
     refetchStats()
+  }
+
+  const handleRowClick = (controlId: string) => {
+    setSelectedControlId(controlId)
+    setIsDetailOpen(true)
+  }
+
+  const handleDetailClose = () => {
+    setIsDetailOpen(false)
+    setSelectedControlId(null)
   }
 
   if (isLoading) {
@@ -406,7 +419,11 @@ export default function ControlsPage() {
             </thead>
             <tbody>
               {controls.map((control) => (
-                <tr key={control.id} className="border-b hover:bg-muted/25 cursor-pointer">
+                <tr
+                  key={control.id}
+                  className="border-b hover:bg-muted/25 cursor-pointer"
+                  onClick={() => handleRowClick(control.id)}
+                >
                   <td className="p-3 text-sm font-mono">{control.code}</td>
                   <td className="p-3 text-sm">
                     <div>
@@ -430,9 +447,10 @@ export default function ControlsPage() {
                     </Badge>
                   </td>
                   <td className="p-3 text-sm">
-                    <span className="text-muted-foreground">
-                      {control.requirement_count} mapped
-                    </span>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Link2 className="h-3 w-3" />
+                      {control.requirement_count}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -459,6 +477,16 @@ export default function ControlsPage() {
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
         onSuccess={handleSuccess}
+      />
+
+      <ControlDetailSheet
+        controlId={selectedControlId}
+        open={isDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) handleDetailClose()
+        }}
+        onUpdate={handleSuccess}
+        onDelete={handleSuccess}
       />
     </div>
   )

@@ -16,6 +16,7 @@ pub enum AppError {
     InternalServerError(String),
     DatabaseError(sqlx::Error),
     RedisError(redis::RedisError),
+    SearchError(String),
     ValidationError(String),
 }
 
@@ -30,6 +31,7 @@ impl fmt::Display for AppError {
             AppError::InternalServerError(msg) => write!(f, "Internal Server Error: {}", msg),
             AppError::DatabaseError(err) => write!(f, "Database Error: {}", err),
             AppError::RedisError(err) => write!(f, "Redis Error: {}", err),
+            AppError::SearchError(msg) => write!(f, "Search Error: {}", msg),
             AppError::ValidationError(msg) => write!(f, "Validation Error: {}", msg),
         }
     }
@@ -60,6 +62,13 @@ impl IntoResponse for AppError {
                     "Cache error occurred".to_string(),
                 )
             }
+            AppError::SearchError(err) => {
+                tracing::error!("Search error: {}", err);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Search error occurred".to_string(),
+                )
+            }
             AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
         };
 
@@ -80,6 +89,12 @@ impl From<sqlx::Error> for AppError {
 impl From<redis::RedisError> for AppError {
     fn from(err: redis::RedisError) -> Self {
         AppError::RedisError(err)
+    }
+}
+
+impl From<meilisearch_sdk::errors::Error> for AppError {
+    fn from(err: meilisearch_sdk::errors::Error) -> Self {
+        AppError::SearchError(err.to_string())
     }
 }
 

@@ -8,7 +8,9 @@ pub mod health;
 pub mod integrations;
 pub mod policies;
 pub mod policy_templates;
+pub mod reports;
 pub mod risks;
+pub mod search;
 pub mod sso;
 pub mod vendors;
 
@@ -155,6 +157,11 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/frameworks/:framework_id/requirements/:id", put(frameworks::update_requirement))
         .route("/api/v1/frameworks/:framework_id/requirements/:id", delete(frameworks::delete_requirement))
         .route("/api/v1/frameworks/:framework_id/gap-analysis", get(frameworks::get_gap_analysis))
+        .route("/api/v1/reports/types", get(reports::list_report_types))
+        .route("/api/v1/reports/:report_type/csv", get(reports::generate_csv_report))
+        .route("/api/v1/search", get(search::search))
+        .route("/api/v1/search/status", get(search::search_status))
+        .route("/api/v1/search/reindex", post(search::reindex_all))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { GlobalSearch } from "@/components/global-search"
 import { ProtectedRoute } from "@/components/protected-route"
 import { useAuth } from "@/contexts/auth-context"
 
@@ -27,6 +28,7 @@ export function AppShell({ children }: AppShellProps) {
           <header className="flex h-16 items-center justify-between border-b px-6">
             <div className="flex items-center gap-4">
               <h2 className="text-lg font-semibold">Compliance Management</h2>
+              <GlobalSearch />
             </div>
             <div className="flex items-center gap-4">
               {user && (

@@ -1,7 +1,8 @@
 use anyhow::Result;
 use opengrc_api::{
-    cache::CacheClient, config::Config, middleware::AuthState, routes, services::AppServices,
-    storage::StorageClient,
+    cache::CacheClient, config::Config, middleware::AuthState, routes,
+    search::SearchClient, services::AppServices, storage::StorageClient,
+    workers::ControlTestingWorker,
 };
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -45,7 +46,24 @@ async fn main() -> Result<()> {
     let storage = StorageClient::new(&config.s3).await?;
     tracing::info!("S3 storage client initialized");
 
-    let services = Arc::new(AppServices::new(db_pool, cache, storage));
+    let search = if config.meilisearch.enabled {
+        let client = SearchClient::new(
+            &config.meilisearch.host,
+            config.meilisearch.api_key.as_deref(),
+        );
+        if let Err(e) = client.init_index().await {
+            tracing::warn!("Failed to initialize Meilisearch index: {}. Search will be disabled.", e);
+            SearchClient::disabled()
+        } else {
+            tracing::info!("Meilisearch client initialized at {}", config.meilisearch.host);
+            client
+        }
+    } else {
+        tracing::info!("Meilisearch is disabled");
+        SearchClient::disabled()
+    };
+
+    let services = Arc::new(AppServices::new(db_pool, cache, storage, search));
 
     let auth_state = Arc::new(AuthState::new(
         config.titanium_vault.api_url.clone(),
@@ -55,6 +73,11 @@ async fn main() -> Result<()> {
     ));
 
     let app = routes::create_router(services.clone(), auth_state, config.cors.origins.clone());
+
+    // Start the control testing worker
+    let worker = Arc::new(ControlTestingWorker::new(services.db.clone()));
+    tokio::spawn(worker.run());
+    tracing::info!("Control testing worker started");
 
     let addr = format!("{}:{}", config.server.host, config.server.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;

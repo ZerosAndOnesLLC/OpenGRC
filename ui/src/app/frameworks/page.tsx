@@ -5,15 +5,35 @@ import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Loading } from "@/components/loading"
+import { FrameworkDetailSheet } from "@/components/framework-detail-sheet"
 import { Plus, Search, ClipboardList, ChevronRight, BookOpen } from "lucide-react"
-import { useFrameworks } from '@/hooks/use-api'
-import type { Framework } from '@/types'
+import { useFrameworks, useMutation } from '@/hooks/use-api'
+import { apiClient } from '@/lib/api-client'
+import type { Framework, CreateFramework } from '@/types'
 
-function FrameworkCard({ framework }: { framework: Framework }) {
+interface FrameworkCardProps {
+  framework: Framework
+  onClick: () => void
+}
+
+function FrameworkCard({ framework, onClick }: FrameworkCardProps) {
   return (
-    <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+    <Card
+      className="hover:border-primary/50 transition-colors cursor-pointer"
+      onClick={onClick}
+    >
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -57,8 +77,120 @@ function FrameworkCard({ framework }: { framework: Framework }) {
   )
 }
 
+function CreateFrameworkForm({
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess: () => void
+}) {
+  const [formData, setFormData] = useState<CreateFramework>({
+    name: '',
+    version: '',
+    description: '',
+    category: '',
+    is_system: false,
+  })
+
+  const createMutation = useMutation(async (data: CreateFramework) => {
+    return apiClient.post<Framework>('/frameworks', data)
+  })
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await createMutation.mutate(formData)
+      onOpenChange(false)
+      setFormData({
+        name: '',
+        version: '',
+        description: '',
+        category: '',
+        is_system: false,
+      })
+      onSuccess()
+    } catch {
+      // Error handled by mutation
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Create Framework</DialogTitle>
+          <DialogDescription>
+            Add a new compliance framework to track requirements.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., ISO 27001:2022"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="version">Version</Label>
+                <Input
+                  id="version"
+                  value={formData.version || ''}
+                  onChange={(e) => setFormData({ ...formData, version: e.target.value })}
+                  placeholder="e.g., 2022"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  value={formData.category || ''}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="e.g., Security"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description || ''}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Describe the framework..."
+                rows={3}
+              />
+            </div>
+          </div>
+          {createMutation.error && (
+            <div className="text-sm text-red-500 mb-4">{createMutation.error.message}</div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createMutation.isLoading}>
+              {createMutation.isLoading ? 'Creating...' : 'Create Framework'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function FrameworksPage() {
   const [search, setSearch] = useState('')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [selectedFrameworkId, setSelectedFrameworkId] = useState<string | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+
   const { data: frameworks, isLoading, error, refetch } = useFrameworks()
 
   const filteredFrameworks = frameworks?.filter(framework =>
@@ -66,6 +198,20 @@ export default function FrameworksPage() {
     framework.name.toLowerCase().includes(search.toLowerCase()) ||
     framework.description?.toLowerCase().includes(search.toLowerCase())
   )
+
+  const handleFrameworkClick = (frameworkId: string) => {
+    setSelectedFrameworkId(frameworkId)
+    setIsDetailOpen(true)
+  }
+
+  const handleDetailClose = () => {
+    setIsDetailOpen(false)
+    setSelectedFrameworkId(null)
+  }
+
+  const handleSuccess = () => {
+    refetch()
+  }
 
   if (isLoading) {
     return <Loading />
@@ -91,7 +237,7 @@ export default function FrameworksPage() {
         title="Frameworks"
         description="Manage compliance frameworks and requirements"
       >
-        <Button>
+        <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Add Framework
         </Button>
@@ -112,7 +258,11 @@ export default function FrameworksPage() {
       {filteredFrameworks && filteredFrameworks.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredFrameworks.map((framework) => (
-            <FrameworkCard key={framework.id} framework={framework} />
+            <FrameworkCard
+              key={framework.id}
+              framework={framework}
+              onClick={() => handleFrameworkClick(framework.id)}
+            />
           ))}
         </div>
       ) : (
@@ -126,7 +276,7 @@ export default function FrameworksPage() {
                 : 'Add compliance frameworks to track requirements and controls.'}
             </p>
             {!search && (
-              <Button>
+              <Button onClick={() => setIsCreateOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Your First Framework
               </Button>
@@ -134,6 +284,22 @@ export default function FrameworksPage() {
           </CardContent>
         </Card>
       )}
+
+      <CreateFrameworkForm
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onSuccess={handleSuccess}
+      />
+
+      <FrameworkDetailSheet
+        frameworkId={selectedFrameworkId}
+        open={isDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) handleDetailClose()
+        }}
+        onUpdate={handleSuccess}
+        onDelete={handleSuccess}
+      />
     </div>
   )
 }

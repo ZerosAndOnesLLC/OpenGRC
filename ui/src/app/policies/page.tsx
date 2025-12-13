@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
-import { DataTable } from "@/components/data-table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, FileText, Loader2 } from "lucide-react"
+import { Plus, FileText, Loader2, CheckCircle2 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { PolicyTemplateBrowser } from "@/components/policy-template-browser"
+import { PolicyDetailSheet } from "@/components/policy-detail-sheet"
 import {
   Dialog,
   DialogContent,
@@ -80,6 +80,8 @@ export default function PoliciesPage() {
   const [templateBrowserOpen, setTemplateBrowserOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -92,6 +94,16 @@ export default function PoliciesPage() {
   useEffect(() => {
     loadPolicies()
   }, [])
+
+  const handlePolicyClick = (policyId: string) => {
+    setSelectedPolicyId(policyId)
+    setIsDetailOpen(true)
+  }
+
+  const handleDetailClose = () => {
+    setIsDetailOpen(false)
+    setSelectedPolicyId(null)
+  }
 
   const loadPolicies = async () => {
     try {
@@ -140,66 +152,6 @@ export default function PoliciesPage() {
     setCreateDialogOpen(true)
   }
 
-  const columns = [
-    {
-      key: "code",
-      header: "Code",
-      render: (policy: Policy) => (
-        <span className="font-mono text-sm">{policy.code}</span>
-      ),
-    },
-    {
-      key: "title",
-      header: "Policy Title",
-      render: (policy: Policy) => (
-        <span className="font-medium">{policy.title}</span>
-      ),
-    },
-    {
-      key: "category",
-      header: "Category",
-      render: (policy: Policy) => (
-        policy.category ? (
-          <span className="text-sm">
-            {categoryLabels[policy.category] || policy.category}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )
-      ),
-    },
-    {
-      key: "version",
-      header: "Version",
-      render: (policy: Policy) => (
-        <span className="text-sm">v{policy.version}</span>
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (policy: Policy) => (
-        <Badge className={statusColors[policy.status] || statusColors.draft}>
-          {policy.status.replace("_", " ")}
-        </Badge>
-      ),
-    },
-    {
-      key: "acknowledgments",
-      header: "Acknowledgments",
-      render: (policy: Policy) => (
-        <span className="text-sm">
-          {policy.acknowledgment_count}
-          {policy.pending_acknowledgments > 0 && (
-            <span className="text-yellow-600 ml-1">
-              ({policy.pending_acknowledgments} pending)
-            </span>
-          )}
-        </span>
-      ),
-    },
-  ]
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -222,12 +174,71 @@ export default function PoliciesPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      ) : policies.length > 0 ? (
+        <div className="rounded-md border">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="p-3 text-left text-sm font-medium">Code</th>
+                <th className="p-3 text-left text-sm font-medium">Policy Title</th>
+                <th className="p-3 text-left text-sm font-medium">Category</th>
+                <th className="p-3 text-left text-sm font-medium">Version</th>
+                <th className="p-3 text-left text-sm font-medium">Status</th>
+                <th className="p-3 text-left text-sm font-medium">Acknowledgments</th>
+              </tr>
+            </thead>
+            <tbody>
+              {policies.map((policy) => (
+                <tr
+                  key={policy.id}
+                  className="border-b hover:bg-muted/25 cursor-pointer"
+                  onClick={() => handlePolicyClick(policy.id)}
+                >
+                  <td className="p-3 text-sm font-mono">{policy.code}</td>
+                  <td className="p-3 text-sm font-medium">{policy.title}</td>
+                  <td className="p-3 text-sm">
+                    {policy.category ? categoryLabels[policy.category] || policy.category : '-'}
+                  </td>
+                  <td className="p-3 text-sm">v{policy.version}</td>
+                  <td className="p-3 text-sm">
+                    <Badge className={statusColors[policy.status] || statusColors.draft}>
+                      {policy.status.replace("_", " ")}
+                    </Badge>
+                  </td>
+                  <td className="p-3 text-sm">
+                    <div className="flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      {policy.acknowledgment_count}
+                      {policy.pending_acknowledgments > 0 && (
+                        <span className="text-yellow-600 ml-1">
+                          ({policy.pending_acknowledgments} pending)
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <DataTable
-          data={policies}
-          columns={columns}
-          emptyMessage="No policies created. Use a template or create a new policy to get started."
-        />
+        <div className="flex flex-col items-center justify-center py-12 border rounded-md border-dashed">
+          <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No policies created</h3>
+          <p className="text-muted-foreground text-sm mb-4 text-center">
+            Use a template or create a new policy to get started.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setTemplateBrowserOpen(true)}>
+              <FileText className="mr-2 h-4 w-4" />
+              Use Template
+            </Button>
+            <Button onClick={openBlankPolicy}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Policy
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Template Browser Modal */}
@@ -336,6 +347,16 @@ export default function PoliciesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PolicyDetailSheet
+        policyId={selectedPolicyId}
+        open={isDetailOpen}
+        onOpenChange={(open) => {
+          if (!open) handleDetailClose()
+        }}
+        onUpdate={loadPolicies}
+        onDelete={loadPolicies}
+      />
     </div>
   )
 }
