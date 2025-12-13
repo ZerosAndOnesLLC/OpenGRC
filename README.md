@@ -30,7 +30,7 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] Audit tracking
 - [x] Dashboard with real-time stats
 - [x] Redis caching layer
-- [ ] Evidence file uploads to S3
+- [x] Evidence file uploads to S3 (presigned URLs)
 - [ ] Automated control testing
 - [ ] Report generation
 

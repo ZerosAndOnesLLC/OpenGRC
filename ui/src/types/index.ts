@@ -268,6 +268,16 @@ export interface ListEvidenceQuery {
   offset?: number
 }
 
+export interface PresignedUploadResponse {
+  upload_url: string
+  file_key: string
+  evidence_id: string
+}
+
+export interface PresignedDownloadResponse {
+  download_url: string
+}
+
 export interface EvidenceStats {
   total: number
   by_type: { evidence_type: string; count: number }[]

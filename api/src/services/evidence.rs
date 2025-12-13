@@ -3,7 +3,9 @@ use crate::models::{
     CreateEvidence, Evidence, EvidenceControlLink, EvidenceStats, EvidenceWithLinks,
     LinkedControl, ListEvidenceQuery, SourceCount, TypeCount, UpdateEvidence,
 };
+use crate::storage::StorageClient;
 use crate::utils::{AppError, AppResult};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::time::Duration;
 use uuid::Uuid;
@@ -12,15 +14,30 @@ const CACHE_TTL: Duration = Duration::from_secs(1800); // 30 minutes
 const CACHE_PREFIX_EVIDENCE: &str = "evidence";
 const CACHE_PREFIX_EVIDENCE_STATS: &str = "evidence:stats";
 
+/// Response for presigned upload URL
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PresignedUploadResponse {
+    pub upload_url: String,
+    pub file_key: String,
+    pub evidence_id: Uuid,
+}
+
+/// Response for presigned download URL
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PresignedDownloadResponse {
+    pub download_url: String,
+}
+
 #[derive(Clone)]
 pub struct EvidenceService {
     db: PgPool,
     cache: CacheClient,
+    storage: StorageClient,
 }
 
 impl EvidenceService {
-    pub fn new(db: PgPool, cache: CacheClient) -> Self {
-        Self { db, cache }
+    pub fn new(db: PgPool, cache: CacheClient, storage: StorageClient) -> Self {
+        Self { db, cache, storage }
     }
 
     // ==================== Evidence CRUD ====================
@@ -293,8 +310,15 @@ impl EvidenceService {
 
     /// Delete evidence
     pub async fn delete_evidence(&self, org_id: Uuid, id: Uuid) -> AppResult<()> {
-        // Verify evidence exists
-        self.get_evidence(org_id, id).await?;
+        // Get evidence to check for file
+        let evidence = self.get_evidence(org_id, id).await?;
+
+        // Delete file from S3 if exists
+        if let Some(file_path) = &evidence.evidence.file_path {
+            if let Err(e) = self.storage.delete_evidence(file_path).await {
+                tracing::warn!("Failed to delete file from S3: {}", e);
+            }
+        }
 
         sqlx::query("DELETE FROM evidence WHERE id = $1 AND organization_id = $2")
             .bind(id)
@@ -308,6 +332,141 @@ impl EvidenceService {
         tracing::info!("Deleted evidence: {}", id);
 
         Ok(())
+    }
+
+    // ==================== File Upload/Download ====================
+
+    /// Get a presigned URL for uploading a file
+    pub async fn get_upload_url(
+        &self,
+        org_id: Uuid,
+        evidence_id: Uuid,
+        filename: &str,
+        content_type: &str,
+    ) -> AppResult<PresignedUploadResponse> {
+        // Verify evidence exists
+        self.get_evidence(org_id, evidence_id).await?;
+
+        let (upload_url, file_key) = self
+            .storage
+            .get_presigned_upload_url(org_id, evidence_id, filename, content_type)
+            .await?;
+
+        Ok(PresignedUploadResponse {
+            upload_url,
+            file_key,
+            evidence_id,
+        })
+    }
+
+    /// Confirm file upload and update evidence record
+    pub async fn confirm_upload(
+        &self,
+        org_id: Uuid,
+        evidence_id: Uuid,
+        file_key: &str,
+        file_size: i64,
+        mime_type: &str,
+    ) -> AppResult<Evidence> {
+        // Verify evidence exists
+        self.get_evidence(org_id, evidence_id).await?;
+
+        // Update evidence with file info
+        let evidence = sqlx::query_as::<_, Evidence>(
+            r#"
+            UPDATE evidence
+            SET file_path = $3, file_size = $4, mime_type = $5
+            WHERE id = $1 AND organization_id = $2
+            RETURNING id, organization_id, title, description, evidence_type, source,
+                      source_reference, file_path, file_size, mime_type, collected_at,
+                      valid_from, valid_until, uploaded_by, created_at
+            "#,
+        )
+        .bind(evidence_id)
+        .bind(org_id)
+        .bind(file_key)
+        .bind(file_size)
+        .bind(mime_type)
+        .fetch_one(&self.db)
+        .await?;
+
+        // Invalidate cache
+        self.invalidate_evidence_cache(org_id, evidence_id).await?;
+
+        tracing::info!("Confirmed file upload for evidence: {}", evidence_id);
+
+        Ok(evidence)
+    }
+
+    /// Get a presigned URL for downloading a file
+    pub async fn get_download_url(
+        &self,
+        org_id: Uuid,
+        evidence_id: Uuid,
+    ) -> AppResult<PresignedDownloadResponse> {
+        // Get evidence with file path
+        let evidence = self.get_evidence(org_id, evidence_id).await?;
+
+        let file_path = evidence
+            .evidence
+            .file_path
+            .ok_or_else(|| AppError::NotFound("No file attached to this evidence".to_string()))?;
+
+        let download_url = self.storage.get_presigned_download_url(&file_path).await?;
+
+        Ok(PresignedDownloadResponse { download_url })
+    }
+
+    /// Upload a file directly (for smaller files via multipart)
+    pub async fn upload_file(
+        &self,
+        org_id: Uuid,
+        evidence_id: Uuid,
+        filename: &str,
+        content_type: &str,
+        data: Vec<u8>,
+    ) -> AppResult<Evidence> {
+        // Verify evidence exists
+        self.get_evidence(org_id, evidence_id).await?;
+
+        let file_size = data.len() as i64;
+
+        // Upload to S3
+        let file_key = self
+            .storage
+            .upload_evidence(org_id, evidence_id, filename, content_type, data)
+            .await?;
+
+        // Update evidence record
+        let evidence = sqlx::query_as::<_, Evidence>(
+            r#"
+            UPDATE evidence
+            SET file_path = $3, file_size = $4, mime_type = $5
+            WHERE id = $1 AND organization_id = $2
+            RETURNING id, organization_id, title, description, evidence_type, source,
+                      source_reference, file_path, file_size, mime_type, collected_at,
+                      valid_from, valid_until, uploaded_by, created_at
+            "#,
+        )
+        .bind(evidence_id)
+        .bind(org_id)
+        .bind(&file_key)
+        .bind(file_size)
+        .bind(content_type)
+        .fetch_one(&self.db)
+        .await?;
+
+        // Invalidate cache
+        self.invalidate_evidence_cache(org_id, evidence_id).await?;
+
+        tracing::info!(
+            "Uploaded file for evidence {}: {} ({} bytes)",
+            evidence_id,
+            filename,
+            file_size
+        );
+
+        Ok(evidence)
     }
 
     // ==================== Control Links ====================

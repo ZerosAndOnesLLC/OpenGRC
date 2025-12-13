@@ -1,5 +1,8 @@
 use anyhow::Result;
-use opengrc_api::{cache::CacheClient, config::Config, middleware::AuthState, routes, services::AppServices};
+use opengrc_api::{
+    cache::CacheClient, config::Config, middleware::AuthState, routes, services::AppServices,
+    storage::StorageClient,
+};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,7 +42,10 @@ async fn main() -> Result<()> {
     let cache = CacheClient::new(config.redis_url()).await?;
     tracing::info!("Redis connection established");
 
-    let services = Arc::new(AppServices::new(db_pool, cache));
+    let storage = StorageClient::new(&config.s3).await?;
+    tracing::info!("S3 storage client initialized");
+
+    let services = Arc::new(AppServices::new(db_pool, cache, storage));
 
     let auth_state = Arc::new(AuthState::new(
         config.titanium_vault.api_url.clone(),

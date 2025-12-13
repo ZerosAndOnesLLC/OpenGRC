@@ -9,6 +9,7 @@ pub struct Config {
     pub redis: RedisConfig,
     pub titanium_vault: TitaniumVaultConfig,
     pub cors: CorsConfig,
+    pub s3: S3Config,
     pub environment: String,
 }
 
@@ -43,6 +44,15 @@ pub struct TitaniumVaultConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct CorsConfig {
     pub origins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct S3Config {
+    pub bucket: String,
+    pub region: String,
+    pub endpoint: Option<String>,
+    pub access_key_id: Option<String>,
+    pub secret_access_key: Option<String>,
 }
 
 impl Config {
@@ -97,6 +107,13 @@ impl Config {
             },
             cors: CorsConfig {
                 origins: cors_origins,
+            },
+            s3: S3Config {
+                bucket: env::var("S3_BUCKET").unwrap_or_else(|_| "opengrc-evidence".to_string()),
+                region: env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
+                endpoint: env::var("S3_ENDPOINT").ok(),
+                access_key_id: env::var("AWS_ACCESS_KEY_ID").ok(),
+                secret_access_key: env::var("AWS_SECRET_ACCESS_KEY").ok(),
             },
             environment: env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         })
