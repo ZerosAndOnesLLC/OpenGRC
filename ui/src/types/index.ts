@@ -89,6 +89,33 @@ export interface CreateFrameworkRequirement {
   sort_order?: number
 }
 
+export interface RequirementGapAnalysis {
+  id: string
+  code: string
+  name: string
+  category: string | null
+  control_count: number
+  is_covered: boolean
+}
+
+export interface CategoryGapAnalysis {
+  category: string | null
+  total: number
+  covered: number
+  coverage_percentage: number
+}
+
+export interface FrameworkGapAnalysis {
+  framework_id: string
+  framework_name: string
+  total_requirements: number
+  covered_requirements: number
+  uncovered_requirements: number
+  coverage_percentage: number
+  by_category: CategoryGapAnalysis[]
+  requirements: RequirementGapAnalysis[]
+}
+
 // ==================== Control ====================
 
 export type ControlType = 'preventive' | 'detective' | 'corrective'
@@ -467,6 +494,18 @@ export interface RiskStats {
   needs_review: number
   average_inherent_score: number
   average_residual_score: number
+}
+
+export interface HeatmapCell {
+  likelihood: number
+  impact: number
+  count: number
+}
+
+export interface RiskHeatmapData {
+  cells: HeatmapCell[]
+  total_risks: number
+  risks_with_scores: number
 }
 
 export interface LinkControlsRequest {

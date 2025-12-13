@@ -79,6 +79,39 @@ pub struct RequirementTree {
     pub children: Vec<RequirementTree>,
 }
 
+/// Gap analysis result for a single requirement
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequirementGapAnalysis {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub category: Option<String>,
+    pub control_count: i64,
+    pub is_covered: bool,
+}
+
+/// Gap analysis summary for a framework
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FrameworkGapAnalysis {
+    pub framework_id: Uuid,
+    pub framework_name: String,
+    pub total_requirements: i64,
+    pub covered_requirements: i64,
+    pub uncovered_requirements: i64,
+    pub coverage_percentage: f64,
+    pub by_category: Vec<CategoryGapAnalysis>,
+    pub requirements: Vec<RequirementGapAnalysis>,
+}
+
+/// Gap analysis breakdown by category
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryGapAnalysis {
+    pub category: Option<String>,
+    pub total: i64,
+    pub covered: i64,
+    pub coverage_percentage: f64,
+}
+
 impl Framework {
     pub fn validate_create(input: &CreateFramework) -> Result<(), String> {
         if input.name.trim().is_empty() {

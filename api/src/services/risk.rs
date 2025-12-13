@@ -2,6 +2,7 @@ use crate::cache::{org_cache_key, CacheClient};
 use crate::models::{
     CreateRisk, LinkedControlSummary, ListRisksQuery, Risk, RiskCategoryCount,
     RiskControlMapping, RiskStats, RiskWithControls, StatusCount, UpdateRisk,
+    RiskHeatmapData, HeatmapCell,
 };
 use crate::utils::{AppError, AppResult};
 use sqlx::PgPool;
@@ -494,6 +495,63 @@ impl RiskService {
             .await?;
 
         Ok(stats)
+    }
+
+    /// Get risk heatmap data for visualization
+    pub async fn get_heatmap(&self, org_id: Uuid) -> AppResult<RiskHeatmapData> {
+        let cache_key = org_cache_key(&org_id.to_string(), CACHE_PREFIX_RISK_STATS, "heatmap");
+
+        // Try cache first
+        if let Some(cached) = self.cache.get::<RiskHeatmapData>(&cache_key).await? {
+            tracing::debug!("Cache hit for risk heatmap");
+            return Ok(cached);
+        }
+
+        // Get total risks and risks with scores
+        let (total_risks, risks_with_scores): (i64, i64) = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE likelihood IS NOT NULL AND impact IS NOT NULL) as with_scores
+            FROM risks
+            WHERE organization_id = $1
+            "#,
+        )
+        .bind(org_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        // Get heatmap cell counts
+        let cells: Vec<HeatmapCell> = sqlx::query_as(
+            r#"
+            SELECT
+                likelihood,
+                impact,
+                COUNT(*) as count
+            FROM risks
+            WHERE organization_id = $1
+              AND likelihood IS NOT NULL
+              AND impact IS NOT NULL
+            GROUP BY likelihood, impact
+            ORDER BY likelihood, impact
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        let heatmap = RiskHeatmapData {
+            cells,
+            total_risks,
+            risks_with_scores,
+        };
+
+        // Cache for 5 minutes
+        self.cache
+            .set(&cache_key, &heatmap, Some(Duration::from_secs(300)))
+            .await?;
+
+        Ok(heatmap)
     }
 
     // ==================== Cache Invalidation ====================

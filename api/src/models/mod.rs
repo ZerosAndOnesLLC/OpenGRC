@@ -38,6 +38,7 @@ pub struct User {
 pub use framework::{
     Framework, FrameworkRequirement, CreateFramework, UpdateFramework,
     CreateFrameworkRequirement, UpdateFrameworkRequirement, FrameworkWithRequirements,
+    FrameworkGapAnalysis, CategoryGapAnalysis, RequirementGapAnalysis,
 };
 
 pub use control::{
@@ -60,7 +61,7 @@ pub use policy::{
 pub use risk::{
     Risk, RiskWithControls, LinkedControlSummary, RiskControlMapping,
     CreateRisk, UpdateRisk, ListRisksQuery, RiskStats, StatusCount, RiskCategoryCount,
-    LinkControlsRequest,
+    LinkControlsRequest, RiskHeatmapData, HeatmapCell,
 };
 
 pub use vendor::{

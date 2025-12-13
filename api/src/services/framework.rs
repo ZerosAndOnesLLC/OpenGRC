@@ -2,9 +2,11 @@ use crate::cache::{cache_key, CacheClient};
 use crate::models::{
     CreateFramework, CreateFrameworkRequirement, Framework, FrameworkRequirement,
     FrameworkWithRequirements, UpdateFramework, UpdateFrameworkRequirement,
+    FrameworkGapAnalysis, CategoryGapAnalysis, RequirementGapAnalysis,
 };
 use crate::utils::{AppError, AppResult};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -584,6 +586,100 @@ impl FrameworkService {
         );
 
         Ok(created)
+    }
+
+    // ==================== Gap Analysis ====================
+
+    /// Get gap analysis for a framework within an organization
+    pub async fn get_gap_analysis(
+        &self,
+        org_id: Uuid,
+        framework_id: Uuid,
+    ) -> AppResult<FrameworkGapAnalysis> {
+        // Get framework info
+        let framework = self.get_framework(framework_id).await?;
+
+        // Get all requirements for this framework
+        let requirements = self.list_requirements(framework_id).await?;
+
+        // Get control mappings count for each requirement (for this org)
+        let mapping_counts: Vec<(Uuid, i64)> = sqlx::query_as(
+            r#"
+            SELECT fr.id, COUNT(crm.id) as count
+            FROM framework_requirements fr
+            LEFT JOIN control_requirement_mappings crm ON fr.id = crm.framework_requirement_id
+            LEFT JOIN controls c ON crm.control_id = c.id AND c.organization_id = $1
+            WHERE fr.framework_id = $2
+            GROUP BY fr.id
+            "#,
+        )
+        .bind(org_id)
+        .bind(framework_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        let count_map: HashMap<Uuid, i64> = mapping_counts.into_iter().collect();
+
+        // Build requirement analysis
+        let req_analysis: Vec<RequirementGapAnalysis> = requirements
+            .iter()
+            .map(|req| {
+                let control_count = count_map.get(&req.id).copied().unwrap_or(0);
+                RequirementGapAnalysis {
+                    id: req.id,
+                    code: req.code.clone(),
+                    name: req.name.clone(),
+                    category: req.category.clone(),
+                    control_count,
+                    is_covered: control_count > 0,
+                }
+            })
+            .collect();
+
+        // Calculate totals
+        let total_requirements = req_analysis.len() as i64;
+        let covered_requirements = req_analysis.iter().filter(|r| r.is_covered).count() as i64;
+        let uncovered_requirements = total_requirements - covered_requirements;
+        let coverage_percentage = if total_requirements > 0 {
+            (covered_requirements as f64 / total_requirements as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        // Group by category
+        let mut category_map: HashMap<Option<String>, (i64, i64)> = HashMap::new();
+        for req in &req_analysis {
+            let entry = category_map.entry(req.category.clone()).or_insert((0, 0));
+            entry.0 += 1; // total
+            if req.is_covered {
+                entry.1 += 1; // covered
+            }
+        }
+
+        let by_category: Vec<CategoryGapAnalysis> = category_map
+            .into_iter()
+            .map(|(category, (total, covered))| CategoryGapAnalysis {
+                category,
+                total,
+                covered,
+                coverage_percentage: if total > 0 {
+                    (covered as f64 / total as f64) * 100.0
+                } else {
+                    0.0
+                },
+            })
+            .collect();
+
+        Ok(FrameworkGapAnalysis {
+            framework_id,
+            framework_name: framework.name,
+            total_requirements,
+            covered_requirements,
+            uncovered_requirements,
+            coverage_percentage,
+            by_category,
+            requirements: req_analysis,
+        })
     }
 
     // ==================== Cache Invalidation ====================

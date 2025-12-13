@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Loading } from "@/components/loading"
+import { RiskHeatmap } from "@/components/risk-heatmap"
+import { GapAnalysisSummary } from "@/components/gap-analysis"
 import {
   Shield,
   ShieldCheck,
@@ -13,7 +15,6 @@ import {
   Server,
   ClipboardList,
   FileWarning,
-  TrendingUp,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -27,6 +28,8 @@ import {
   useAssetStats,
   useAuditStats,
   useFrameworks,
+  useRiskHeatmap,
+  useGapAnalysis,
 } from '@/hooks/use-api'
 import type { ControlStats, EvidenceStats, PolicyStats, RiskStats, VendorStats, AssetStats, AuditStats, Framework } from '@/types'
 
@@ -324,6 +327,11 @@ export default function DashboardPage() {
   const { data: assetStats, isLoading: assetsLoading } = useAssetStats()
   const { data: auditStats, isLoading: auditsLoading } = useAuditStats()
   const { data: frameworks, isLoading: frameworksLoading } = useFrameworks()
+  const { data: heatmapData } = useRiskHeatmap()
+
+  // Get gap analysis for the first framework with requirements
+  const firstFrameworkId = frameworks?.[0]?.id || ''
+  const { data: gapAnalysis } = useGapAnalysis(firstFrameworkId)
 
   const isLoading = controlsLoading || evidenceLoading || policiesLoading ||
     risksLoading || vendorsLoading || assetsLoading || auditsLoading || frameworksLoading
@@ -385,6 +393,26 @@ export default function DashboardPage() {
         <FrameworksList frameworks={frameworks} />
       </div>
 
+      {/* Risk Heatmap & Gap Analysis */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <RiskHeatmap data={heatmapData} />
+        {gapAnalysis ? (
+          <GapAnalysisSummary
+            frameworks={[
+              {
+                id: gapAnalysis.framework_id,
+                name: gapAnalysis.framework_name,
+                coverage: gapAnalysis.coverage_percentage,
+                total: gapAnalysis.total_requirements,
+                covered: gapAnalysis.covered_requirements,
+              },
+            ]}
+          />
+        ) : (
+          <GapAnalysisSummary frameworks={[]} />
+        )}
+      </div>
+
       {/* Audit Overview */}
       {auditStats && auditStats.total > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
@@ -392,15 +420,15 @@ export default function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Compliance Trends
+                <ClipboardList className="h-5 w-5" />
+                Recent Activity
               </CardTitle>
-              <CardDescription>Track your progress over time</CardDescription>
+              <CardDescription>Latest compliance updates</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex h-48 items-center justify-center rounded-lg border border-dashed">
                 <p className="text-sm text-muted-foreground">
-                  Trend charts coming soon
+                  Activity feed coming soon
                 </p>
               </div>
             </CardContent>

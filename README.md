@@ -31,6 +31,8 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] Dashboard with real-time stats
 - [x] Redis caching layer
 - [x] Evidence file uploads to S3 (presigned URLs)
+- [x] Risk heatmap visualization (5x5 matrix)
+- [x] Gap analysis dashboard (framework coverage)
 - [ ] Automated control testing
 - [ ] Report generation
 
@@ -41,6 +43,8 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - **Evidence Collection** - Manual uploads + automated collection from 50+ integrations
 - **Policy Management** - Version-controlled policies with employee acknowledgments
 - **Risk Register** - Track and treat risks with scoring matrices
+- **Risk Heatmap** - Interactive 5x5 likelihood/impact matrix visualization
+- **Gap Analysis** - Framework coverage dashboard with per-category breakdown
 - **Vendor Management** - Assess and monitor third-party risk
 - **Access Reviews** - Periodic user access certification campaigns
 - **Audit Portal** - Collaborate with external auditors seamlessly

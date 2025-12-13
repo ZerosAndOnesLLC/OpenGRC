@@ -214,3 +214,14 @@ export function useAudits(query?: Record<string, string | number | boolean>) {
 export function useAuditStats() {
   return useApi<import('@/types').AuditStats>('/audits/stats')
 }
+
+export function useRiskHeatmap() {
+  return useApi<import('@/types').RiskHeatmapData>('/risks/heatmap')
+}
+
+export function useGapAnalysis(frameworkId: string) {
+  return useApi<import('@/types').FrameworkGapAnalysis>(
+    `/frameworks/${frameworkId}/gap-analysis`,
+    { enabled: !!frameworkId }
+  )
+}

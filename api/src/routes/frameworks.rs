@@ -1,18 +1,20 @@
 use axum::{
     extract::{Path, Query, State},
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::middleware::AuthUser;
 use crate::models::{
     CreateFramework, CreateFrameworkRequirement, Framework, FrameworkRequirement,
     FrameworkWithRequirements, UpdateFramework, UpdateFrameworkRequirement,
+    FrameworkGapAnalysis,
 };
 use crate::models::framework::build_requirement_tree;
 use crate::services::AppServices;
-use crate::utils::AppResult;
+use crate::utils::{AppError, AppResult};
 
 #[derive(Debug, Deserialize)]
 pub struct ListFrameworksQuery {
@@ -148,4 +150,22 @@ pub async fn delete_requirement(
 ) -> AppResult<Json<serde_json::Value>> {
     services.framework.delete_requirement(id).await?;
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ==================== Gap Analysis ====================
+
+/// GET /api/v1/frameworks/:framework_id/gap-analysis
+pub async fn get_gap_analysis(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(framework_id): Path<Uuid>,
+) -> AppResult<Json<FrameworkGapAnalysis>> {
+    let org_id = user
+        .organization_id
+        .as_ref()
+        .and_then(|id| Uuid::parse_str(id).ok())
+        .ok_or_else(|| AppError::BadRequest("User not associated with an organization".to_string()))?;
+
+    let analysis = services.framework.get_gap_analysis(org_id, framework_id).await?;
+    Ok(Json(analysis))
 }

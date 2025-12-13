@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::middleware::AuthUser;
 use crate::models::{
     CreateRisk, LinkControlsRequest, ListRisksQuery, Risk, RiskControlMapping,
-    RiskStats, RiskWithControls, UpdateRisk,
+    RiskStats, RiskWithControls, UpdateRisk, RiskHeatmapData,
 };
 use crate::services::AppServices;
 use crate::utils::{AppError, AppResult};
@@ -121,6 +121,15 @@ pub async fn get_risk_stats(
     let org_id = get_org_id(&user)?;
     let stats = services.risk.get_stats(org_id).await?;
     Ok(Json(stats))
+}
+
+pub async fn get_risk_heatmap(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+) -> AppResult<Json<RiskHeatmapData>> {
+    let org_id = get_org_id(&user)?;
+    let heatmap = services.risk.get_heatmap(org_id).await?;
+    Ok(Json(heatmap))
 }
 
 // ==================== Control Mappings ====================

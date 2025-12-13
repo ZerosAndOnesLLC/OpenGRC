@@ -103,6 +103,7 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/risks/:id", delete(risks::delete_risk))
         .route("/api/v1/risks/:id/controls", post(risks::link_controls))
         .route("/api/v1/risks/:id/controls", delete(risks::unlink_controls))
+        .route("/api/v1/risks/heatmap", get(risks::get_risk_heatmap))
         .route("/api/v1/vendors", get(vendors::list_vendors))
         .route("/api/v1/vendors/stats", get(vendors::get_vendor_stats))
         .route("/api/v1/vendors/:id", get(vendors::get_vendor))
@@ -147,6 +148,7 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/frameworks/:framework_id/requirements/batch", post(frameworks::batch_create_requirements))
         .route("/api/v1/frameworks/:framework_id/requirements/:id", put(frameworks::update_requirement))
         .route("/api/v1/frameworks/:framework_id/requirements/:id", delete(frameworks::delete_requirement))
+        .route("/api/v1/frameworks/:framework_id/gap-analysis", get(frameworks::get_gap_analysis))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

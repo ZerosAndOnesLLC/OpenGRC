@@ -181,6 +181,22 @@ pub struct LinkControlsRequest {
     pub effectiveness: Option<String>,
 }
 
+/// Risk heatmap cell data
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct HeatmapCell {
+    pub likelihood: i32,
+    pub impact: i32,
+    pub count: i64,
+}
+
+/// Risk heatmap data for visualization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskHeatmapData {
+    pub cells: Vec<HeatmapCell>,
+    pub total_risks: i64,
+    pub risks_with_scores: i64,
+}
+
 impl Risk {
     pub fn validate_create(input: &CreateRisk) -> Result<(), String> {
         if input.code.trim().is_empty() {
