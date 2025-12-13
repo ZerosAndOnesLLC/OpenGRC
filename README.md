@@ -11,6 +11,29 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 | Limited customization | Fully extensible |
 | Per-seat pricing | Unlimited users |
 
+## Current Status
+
+**Phase 1: Foundation (MVP) - In Progress**
+
+- [x] Project scaffolding (Rust API + Next.js UI)
+- [x] Database schema with migrations
+- [x] SOC 2 Trust Service Criteria pre-loaded
+- [x] TitaniumVault SSO authentication
+- [x] Multi-tenant architecture
+- [x] Controls management (CRUD + stats)
+- [x] Frameworks & requirements management
+- [x] Evidence management
+- [x] Policy management with versioning
+- [x] Risk register with scoring
+- [x] Vendor management
+- [x] Asset inventory
+- [x] Audit tracking
+- [x] Dashboard with real-time stats
+- [x] Redis caching layer
+- [ ] Evidence file uploads to S3
+- [ ] Automated control testing
+- [ ] Report generation
+
 ## Features
 
 - **Multi-Framework Support** - SOC 2, ISO 27001, HIPAA, PCI DSS, GDPR, NIST CSF
@@ -138,7 +161,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+MIT - See [LICENSE](LICENSE) for details.
 
 ## Support
 

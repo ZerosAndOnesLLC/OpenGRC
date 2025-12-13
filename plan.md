@@ -788,14 +788,14 @@ opengrc/
 ├── .github/
 │   └── workflows/
 ├── README.md
-├── LICENSE                 # Apache 2.0 or MIT
+├── LICENSE                 # MIT
 └── plan.md                 # This file
 ```
 
 ## Competitive Advantages
 
 ### 1. **Truly Open Source**
-- Apache 2.0 or MIT license
+- MIT license
 - No "open core" gotchas
 - Community-driven development
 - Self-host anywhere
@@ -885,6 +885,316 @@ While fully open source, potential revenue streams:
 - Advanced analytics
 - Mobile app
 - **Target: Beyond paid competitors**
+
+## Security Considerations
+
+A GRC platform must lead by example. Security is not optional.
+
+### Authentication & Authorization
+- **TitaniumVault Integration**: All auth delegated to TV, no password storage
+- **Session Management**: Short-lived JWTs (15min) with secure refresh tokens
+- **MFA Enforcement**: Require MFA for all admin/compliance manager roles
+- **API Keys**: Scoped, rotatable, with audit logging
+- **RBAC**: Principle of least privilege, deny by default
+
+### Data Protection
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Data Protection Layers                    │
+├─────────────────────────────────────────────────────────────┤
+│  Transit          │  TLS 1.3 everywhere, no exceptions      │
+│  Rest (DB)        │  AES-256 encryption at storage layer    │
+│  Rest (Files)     │  S3 SSE-KMS with customer-managed keys  │
+│  Sensitive Fields │  Application-level encryption (secrets) │
+│  Backups          │  Encrypted with separate key rotation   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Multi-Tenant Isolation
+- **Database**: Row-level security with `organization_id` on every query
+- **Caching**: Namespace all Redis keys with org prefix
+- **File Storage**: Separate S3 prefixes per organization
+- **Search**: Meilisearch tenant isolation via index-per-org or filtered queries
+- **Logs**: Never log sensitive data, always include org context
+
+### Input Validation & Sanitization
+- Validate all inputs at API boundary using strong typing
+- Parameterized queries only - no string concatenation for SQL
+- Sanitize all user content before storage and display
+- File upload validation: type checking, size limits, virus scanning
+- Rate limiting on all endpoints (stricter on auth endpoints)
+
+### Security Headers & CORS
+```rust
+// Required security headers
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Content-Security-Policy: default-src 'self'; script-src 'self'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: geolocation=(), microphone=(), camera=()
+```
+
+### Audit Logging Requirements
+Every security-relevant action must be logged:
+- Authentication events (login, logout, failures, MFA)
+- Authorization failures (access denied)
+- Data access (who viewed what, when)
+- Data modifications (create, update, delete with before/after)
+- Admin actions (user management, settings changes)
+- Integration activities (syncs, API calls)
+- Export/download events
+
+Log format:
+```json
+{
+  "timestamp": "2024-01-15T10:30:00Z",
+  "organization_id": "uuid",
+  "user_id": "uuid",
+  "action": "control.update",
+  "entity_type": "control",
+  "entity_id": "uuid",
+  "ip_address": "x.x.x.x",
+  "user_agent": "...",
+  "old_values": {},
+  "new_values": {},
+  "request_id": "uuid"
+}
+```
+
+### Secrets Management
+- Never commit secrets to git
+- Use environment variables or secrets manager (AWS Secrets Manager, Vault)
+- Rotate credentials regularly (automated where possible)
+- Integration credentials encrypted at rest with org-specific keys
+- No secrets in logs, error messages, or API responses
+
+### Vulnerability Management
+- Automated dependency scanning (Dependabot, cargo-audit)
+- SAST in CI pipeline
+- Container image scanning
+- Regular penetration testing (annual minimum)
+- Responsible disclosure program
+- Security patch SLA: Critical (24h), High (72h), Medium (7d)
+
+### Incident Response
+- Security incident runbook documented
+- Contact points defined
+- Breach notification procedures (GDPR, state laws)
+- Post-incident review process
+- Customer communication templates
+
+### Compliance Self-Assessment
+OpenGRC should pass its own compliance checks:
+- [ ] SOC 2 Type II ready architecture
+- [ ] GDPR compliant (data subject rights, DPA ready)
+- [ ] CCPA compliant
+- [ ] Accessibility (WCAG 2.1 AA)
+
+### Secure Development Practices
+- Code review required for all changes
+- Security-focused PR checklist
+- No `unsafe` Rust without explicit justification and review
+- Dependency minimization (fewer deps = smaller attack surface)
+- Regular security training for contributors
+
+## Testing Strategy
+
+### Testing Pyramid
+```
+                    ┌───────────┐
+                    │   E2E     │  Few, critical paths
+                    │  Tests    │
+                   ─┴───────────┴─
+                 ┌─────────────────┐
+                 │  Integration    │  API contracts, DB queries
+                 │     Tests       │
+                ─┴─────────────────┴─
+              ┌───────────────────────┐
+              │      Unit Tests       │  Business logic, utilities
+              │                       │
+             ─┴───────────────────────┴─
+```
+
+### Unit Tests (Rust API)
+- **Coverage Target**: 80%+ on business logic
+- **What to Test**:
+  - Service layer functions
+  - Validation logic
+  - Permission checks
+  - Risk scoring algorithms
+  - Data transformations
+- **Tools**: Built-in Rust test framework, `mockall` for mocking
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_risk_score_calculation() {
+        let risk = Risk { likelihood: 4, impact: 5 };
+        assert_eq!(risk.inherent_score(), 20);
+    }
+
+    #[tokio::test]
+    async fn test_control_service_create() {
+        let mock_repo = MockControlRepository::new();
+        let service = ControlService::new(mock_repo);
+        // ...
+    }
+}
+```
+
+### Integration Tests (API)
+- **Coverage**: All API endpoints
+- **What to Test**:
+  - Request/response contracts
+  - Authentication/authorization flows
+  - Database operations (use test containers)
+  - Cache invalidation
+  - Multi-tenant isolation
+- **Tools**: `reqwest` for HTTP, `testcontainers` for Postgres/Redis
+
+```rust
+#[tokio::test]
+async fn test_create_control_requires_auth() {
+    let app = spawn_test_app().await;
+    let response = app.post("/api/v1/controls").json(&control).send().await;
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
+async fn test_org_isolation() {
+    let app = spawn_test_app().await;
+    let control = create_control_for_org(&app, org_a).await;
+
+    // User from org_b should not see org_a's control
+    let response = app.get_as_user(org_b_user, &format!("/api/v1/controls/{}", control.id)).await;
+    assert_eq!(response.status(), 404);
+}
+```
+
+### UI Tests (Next.js)
+- **Unit Tests**: Component logic with Jest + React Testing Library
+- **Integration**: API mocking with MSW (Mock Service Worker)
+- **Visual Regression**: Chromatic or Percy for UI consistency
+
+```typescript
+// Component test
+describe('ControlCard', () => {
+  it('displays control status badge correctly', () => {
+    render(<ControlCard control={mockControl} />);
+    expect(screen.getByText('Implemented')).toHaveClass('badge-success');
+  });
+});
+
+// Integration test
+describe('Controls Page', () => {
+  it('fetches and displays controls', async () => {
+    server.use(
+      rest.get('/api/v1/controls', (req, res, ctx) => {
+        return res(ctx.json({ data: mockControls }));
+      })
+    );
+    render(<ControlsPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Access Control Policy')).toBeInTheDocument();
+    });
+  });
+});
+```
+
+### End-to-End Tests
+- **Tool**: Playwright (fast, reliable, cross-browser)
+- **Coverage**: Critical user journeys only
+- **What to Test**:
+  - User login flow
+  - Create/edit control with evidence
+  - Policy approval workflow
+  - Risk assessment flow
+  - Report generation
+
+```typescript
+test('complete control creation flow', async ({ page }) => {
+  await page.goto('/controls');
+  await page.click('button:has-text("New Control")');
+  await page.fill('[name="name"]', 'Access Control Policy');
+  await page.fill('[name="description"]', 'Ensures proper access...');
+  await page.selectOption('[name="frequency"]', 'quarterly');
+  await page.click('button:has-text("Save")');
+  await expect(page.locator('.toast-success')).toBeVisible();
+  await expect(page).toHaveURL(/\/controls\/[\w-]+/);
+});
+```
+
+### Performance Tests
+- **Tool**: k6 for load testing
+- **Benchmarks**:
+  - API response time < 100ms (p95)
+  - Dashboard load < 2 seconds
+  - Search results < 500ms
+  - Support 100 concurrent users per instance
+
+```javascript
+// k6 load test
+export default function() {
+  const controls = http.get(`${BASE_URL}/api/v1/controls`, { headers });
+  check(controls, {
+    'status is 200': (r) => r.status === 200,
+    'response time < 100ms': (r) => r.timings.duration < 100,
+  });
+}
+```
+
+### Security Tests
+- **SAST**: `cargo-audit`, `npm audit` in CI
+- **DAST**: OWASP ZAP automated scans
+- **Dependency Scanning**: Dependabot alerts
+- **Specific Tests**:
+  - SQL injection attempts
+  - XSS payload injection
+  - CSRF token validation
+  - Authorization bypass attempts
+  - Rate limit enforcement
+
+### CI Pipeline
+```yaml
+# .github/workflows/ci.yml
+jobs:
+  test-api:
+    steps:
+      - cargo fmt --check
+      - cargo clippy -- -D warnings
+      - cargo audit
+      - cargo test --all-features
+
+  test-ui:
+    steps:
+      - npm run lint
+      - npm run typecheck
+      - npm run test
+      - npm run build
+
+  e2e:
+    needs: [test-api, test-ui]
+    steps:
+      - docker-compose up -d
+      - npx playwright test
+
+  security-scan:
+    steps:
+      - run: cargo audit
+      - run: npm audit
+      - uses: zaproxy/action-baseline@v0.7.0
+```
+
+### Test Data Management
+- Seed scripts for development and testing
+- Factory functions for generating test entities
+- Anonymized production data snapshots for performance testing
+- Framework data (SOC 2 requirements) as fixtures
 
 ## Getting Started (Development)
 
