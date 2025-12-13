@@ -7,6 +7,7 @@ pub mod frameworks;
 pub mod health;
 pub mod integrations;
 pub mod policies;
+pub mod policy_templates;
 pub mod risks;
 pub mod sso;
 pub mod vendors;
@@ -51,6 +52,11 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
 
     let public_routes = Router::new()
         .route("/health", get(health::health_check))
+        .route("/api/v1/policy-templates", get(policy_templates::list_policy_templates))
+        .route("/api/v1/policy-templates/search", get(policy_templates::search_policy_templates))
+        .route("/api/v1/policy-templates/categories", get(policy_templates::get_template_categories))
+        .route("/api/v1/policy-templates/frameworks", get(policy_templates::get_template_frameworks))
+        .route("/api/v1/policy-templates/:id", get(policy_templates::get_policy_template))
         .with_state(services.clone());
 
     // SSO routes - no auth middleware (used to establish authentication)

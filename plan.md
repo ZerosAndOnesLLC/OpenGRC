@@ -1259,11 +1259,159 @@ cargo run
 - [ ] Report generation (PDF/CSV export)
 - [x] Gap analysis dashboard visualization
 - [ ] Full-text search with Meilisearch
-- [ ] Policy templates (20+ common policies)
+- [x] Policy templates (25 common policies)
 - [ ] Custom framework creation UI
 - [ ] Employee policy acknowledgment portal
 - [x] Risk heatmap visualization
 - [ ] Control-to-requirement mapping UI
+
+## Policy Templates
+
+### Overview
+Policy templates provide organizations with professionally-written, compliance-ready policy documents that can be customized to their needs. Each template includes:
+- **Full policy content** in Markdown format
+- **Framework mappings** showing which compliance frameworks the policy supports
+- **Suggested controls** that should reference the policy
+- **Review frequency** recommendations
+
+### Template Categories
+
+#### Security Policies (SEC)
+| Code | Policy Name | Frameworks |
+|------|-------------|------------|
+| SEC-001 | Information Security Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+| SEC-002 | Access Control Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+| SEC-003 | Password & Authentication Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+| SEC-004 | Encryption Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+| SEC-005 | Network Security Policy | SOC 2, ISO 27001, PCI DSS |
+| SEC-006 | Vulnerability Management Policy | SOC 2, ISO 27001, PCI DSS |
+| SEC-007 | Security Awareness Training Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+| SEC-008 | Physical Security Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+
+#### IT Operations Policies (IT)
+| Code | Policy Name | Frameworks |
+|------|-------------|------------|
+| IT-001 | Acceptable Use Policy | SOC 2, ISO 27001, HIPAA |
+| IT-002 | Change Management Policy | SOC 2, ISO 27001, PCI DSS |
+| IT-003 | Backup & Recovery Policy | SOC 2, ISO 27001, HIPAA |
+| IT-004 | Asset Management Policy | SOC 2, ISO 27001 |
+| IT-005 | Mobile Device & BYOD Policy | SOC 2, ISO 27001, HIPAA |
+| IT-006 | Remote Work Policy | SOC 2, ISO 27001 |
+| IT-007 | Software Development Lifecycle Policy | SOC 2, ISO 27001, PCI DSS |
+
+#### Compliance & Risk Policies (COMP)
+| Code | Policy Name | Frameworks |
+|------|-------------|------------|
+| COMP-001 | Risk Management Policy | SOC 2, ISO 27001, HIPAA |
+| COMP-002 | Vendor Management Policy | SOC 2, ISO 27001, HIPAA |
+| COMP-003 | Incident Response Policy | SOC 2, ISO 27001, HIPAA, PCI DSS |
+| COMP-004 | Business Continuity Policy | SOC 2, ISO 27001, HIPAA |
+| COMP-005 | Data Classification Policy | SOC 2, ISO 27001, HIPAA |
+
+#### Privacy Policies (PRIV)
+| Code | Policy Name | Frameworks |
+|------|-------------|------------|
+| PRIV-001 | Data Privacy Policy | GDPR, CCPA, HIPAA |
+| PRIV-002 | Data Retention Policy | SOC 2, GDPR, HIPAA |
+| PRIV-003 | Data Breach Notification Policy | GDPR, HIPAA, State Laws |
+
+#### Human Resources Policies (HR)
+| Code | Policy Name | Frameworks |
+|------|-------------|------------|
+| HR-001 | Code of Conduct | SOC 2, ISO 27001 |
+| HR-002 | Background Check Policy | SOC 2, ISO 27001, HIPAA |
+
+### Template Structure
+
+Each template follows a consistent structure:
+
+```markdown
+# [Policy Name]
+
+**Policy Code:** [CODE]
+**Version:** 1.0
+**Effective Date:** [To be set]
+**Review Date:** [Annual review recommended]
+**Owner:** [To be assigned]
+**Category:** [security|privacy|hr|it|compliance]
+
+## 1. Purpose
+
+[Why this policy exists and what it aims to achieve]
+
+## 2. Scope
+
+[Who and what this policy applies to]
+
+## 3. Policy Statements
+
+[Core policy requirements organized by topic]
+
+### 3.1 [Topic Area]
+- Requirement 1
+- Requirement 2
+
+### 3.2 [Topic Area]
+- Requirement 1
+- Requirement 2
+
+## 4. Roles & Responsibilities
+
+| Role | Responsibilities |
+|------|-----------------|
+| [Role 1] | [Responsibilities] |
+| [Role 2] | [Responsibilities] |
+
+## 5. Compliance
+
+[How compliance with this policy is measured and enforced]
+
+## 6. Exceptions
+
+[Process for requesting policy exceptions]
+
+## 7. Related Documents
+
+- [Related Policy 1]
+- [Related Procedure 1]
+
+## 8. Definitions
+
+| Term | Definition |
+|------|-----------|
+| [Term 1] | [Definition] |
+
+## 9. Revision History
+
+| Version | Date | Author | Changes |
+|---------|------|--------|---------|
+| 1.0 | [Date] | [Author] | Initial release |
+```
+
+### API Endpoints
+
+```
+GET  /api/v1/policy-templates           # List all templates
+GET  /api/v1/policy-templates/:id       # Get template details
+GET  /api/v1/policy-templates/search    # Search templates by framework/category
+```
+
+### Template Response Schema
+
+```json
+{
+  "id": "sec-001",
+  "code": "SEC-001",
+  "title": "Information Security Policy",
+  "description": "Establishes the organization's approach to managing information security",
+  "category": "security",
+  "frameworks": ["soc2", "iso27001", "hipaa", "pci-dss"],
+  "review_frequency": "annual",
+  "content": "# Information Security Policy\n\n...",
+  "related_templates": ["sec-002", "sec-003"],
+  "suggested_controls": ["AC-001", "AC-002"]
+}
+```
 
 ---
 

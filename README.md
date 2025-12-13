@@ -33,6 +33,7 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] Evidence file uploads to S3 (presigned URLs)
 - [x] Risk heatmap visualization (5x5 matrix)
 - [x] Gap analysis dashboard (framework coverage)
+- [x] Policy templates (25 pre-built compliance policies)
 - [ ] Automated control testing
 - [ ] Report generation
 
@@ -42,6 +43,7 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - **Control Management** - Define, test, and monitor security controls
 - **Evidence Collection** - Manual uploads + automated collection from 50+ integrations
 - **Policy Management** - Version-controlled policies with employee acknowledgments
+- **Policy Templates** - 25 pre-written policy templates covering SOC 2, ISO 27001, HIPAA, and more
 - **Risk Register** - Track and treat risks with scoring matrices
 - **Risk Heatmap** - Interactive 5x5 likelihood/impact matrix visualization
 - **Gap Analysis** - Framework coverage dashboard with per-category breakdown
@@ -158,6 +160,47 @@ OpenGRC supports automated evidence collection from:
 - Cloudflare
 - Datadog
 - PagerDuty
+
+## Policy Templates
+
+OpenGRC includes 25 professionally-written policy templates to jumpstart your compliance program:
+
+### Security Policies
+- Information Security Policy (SEC-001)
+- Access Control Policy (SEC-002)
+- Password & Authentication Policy (SEC-003)
+- Encryption Policy (SEC-004)
+- Network Security Policy (SEC-005)
+- Vulnerability Management Policy (SEC-006)
+- Security Awareness Training Policy (SEC-007)
+- Physical Security Policy (SEC-008)
+
+### IT Operations Policies
+- Acceptable Use Policy (IT-001)
+- Change Management Policy (IT-002)
+- Backup & Recovery Policy (IT-003)
+- Asset Management Policy (IT-004)
+- Mobile Device & BYOD Policy (IT-005)
+- Remote Work Policy (IT-006)
+- Software Development Lifecycle Policy (IT-007)
+
+### Compliance & Risk Policies
+- Risk Management Policy (COMP-001)
+- Vendor Management Policy (COMP-002)
+- Incident Response Policy (COMP-003)
+- Business Continuity Policy (COMP-004)
+- Data Classification Policy (COMP-005)
+
+### Privacy Policies
+- Data Privacy Policy (PRIV-001)
+- Data Retention Policy (PRIV-002)
+- Data Breach Notification Policy (PRIV-003)
+
+### Human Resources Policies
+- Code of Conduct (HR-001)
+- Background Check Policy (HR-002)
+
+All templates include framework mappings (SOC 2, ISO 27001, HIPAA, PCI DSS, GDPR) and can be customized for your organization.
 
 ## Contributing
 
