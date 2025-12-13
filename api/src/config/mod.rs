@@ -11,6 +11,7 @@ pub struct Config {
     pub cors: CorsConfig,
     pub s3: S3Config,
     pub meilisearch: MeilisearchConfig,
+    pub encryption: EncryptionConfig,
     pub environment: String,
 }
 
@@ -61,6 +62,13 @@ pub struct MeilisearchConfig {
     pub host: String,
     pub api_key: Option<String>,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct EncryptionConfig {
+    /// 256-bit encryption key as hex string (64 characters).
+    /// Generate with: openssl rand -hex 32
+    pub key: String,
 }
 
 impl Config {
@@ -130,6 +138,17 @@ impl Config {
                 enabled: env::var("MEILISEARCH_ENABLED")
                     .map(|v| v.to_lowercase() == "true")
                     .unwrap_or(false),
+            },
+            encryption: EncryptionConfig {
+                // Generate a random key for development if not set
+                // In production, this MUST be set via environment variable
+                key: env::var("ENCRYPTION_KEY").unwrap_or_else(|_| {
+                    let key = crate::utils::EncryptionService::generate_key();
+                    tracing::warn!(
+                        "ENCRYPTION_KEY not set, using generated key. Set ENCRYPTION_KEY in production!"
+                    );
+                    key
+                }),
             },
             environment: env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         })

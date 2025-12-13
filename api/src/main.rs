@@ -2,7 +2,7 @@ use anyhow::Result;
 use opengrc_api::{
     cache::CacheClient, config::Config, middleware::AuthState, routes,
     search::SearchClient, services::AppServices, storage::StorageClient,
-    workers::ControlTestingWorker,
+    utils::EncryptionService, workers::ControlTestingWorker,
 };
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -63,7 +63,11 @@ async fn main() -> Result<()> {
         SearchClient::disabled()
     };
 
-    let services = Arc::new(AppServices::new(db_pool, cache, storage, search));
+    let encryption = EncryptionService::new(&config.encryption.key)
+        .expect("Failed to initialize encryption service - check ENCRYPTION_KEY");
+    tracing::info!("Encryption service initialized");
+
+    let services = Arc::new(AppServices::new(db_pool, cache, storage, search, encryption));
 
     let auth_state = Arc::new(AuthState::new(
         config.titanium_vault.api_url.clone(),

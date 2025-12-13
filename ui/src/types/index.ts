@@ -840,15 +840,15 @@ export interface AuditStats {
 
 // ==================== Integration ====================
 
-export type IntegrationType = 'aws' | 'gcp' | 'azure' | 'github' | 'gitlab' | 'okta' | 'google_workspace' | 'jira' | 'datadog' | 'pagerduty' | 'cloudflare' | 'other'
-export type IntegrationStatus = 'active' | 'inactive' | 'error'
+export type IntegrationType = 'aws' | 'gcp' | 'azure' | 'github' | 'gitlab' | 'okta' | 'google_workspace' | 'azure_ad' | 'jira' | 'datadog' | 'pagerduty' | 'cloudflare' | 'webhook'
+export type IntegrationStatus = 'active' | 'inactive' | 'error' | 'syncing'
 
 export interface Integration {
   id: string
   organization_id: string
   integration_type: string
   name: string
-  config: Record<string, unknown>
+  config: Record<string, unknown> | null
   status: string
   last_sync_at: string | null
   last_error: string | null
@@ -856,16 +856,64 @@ export interface Integration {
   updated_at: string
 }
 
-export interface CreateIntegration {
-  integration_type: IntegrationType
+export interface IntegrationWithStats {
+  integration: Integration
+  sync_count: number
+  last_sync_status: string | null
+  records_synced: number | null
+}
+
+export interface IntegrationSyncLog {
+  id: string
+  integration_id: string
+  sync_type: string | null
+  started_at: string
+  completed_at: string | null
+  status: string | null
+  records_processed: number | null
+  errors: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface AvailableIntegration {
+  integration_type: string
   name: string
-  config: Record<string, unknown>
+  description: string
+  category: string
+  capabilities: string[]
+  config_schema: Record<string, unknown>
+  logo_url: string | null
+}
+
+export interface IntegrationStats {
+  total: number
+  active: number
+  inactive: number
+  error: number
+  by_type: { integration_type: string; count: number }[]
+}
+
+export interface TestConnectionResult {
+  success: boolean
+  message: string
+  details: Record<string, unknown> | null
+}
+
+export interface CreateIntegration {
+  integration_type: string
+  name: string
+  config?: Record<string, unknown>
 }
 
 export interface UpdateIntegration {
   name?: string
   config?: Record<string, unknown>
-  status?: IntegrationStatus
+  status?: string
+}
+
+export interface TriggerSyncRequest {
+  sync_type?: string
+  full_sync?: boolean
 }
 
 // ==================== Dashboard ====================

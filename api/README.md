@@ -65,6 +65,10 @@ PORT=8080
 # CORS (optional)
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
+# Encryption (required in production)
+# Generate with: openssl rand -hex 32
+ENCRYPTION_KEY=your_64_character_hex_key_here
+
 # Logging (optional)
 RUST_LOG=info,opengrc_api=debug
 ENVIRONMENT=development
@@ -105,7 +109,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "0.3.0"
+  "version": "1.2.0"
 }
 ```
 
@@ -284,12 +288,20 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 - `PUT /api/v1/audits/:id` - Update audit
 - `DELETE /api/v1/audits/:id` - Delete audit
 
-#### Integrations
-- `GET /api/v1/integrations` - List integrations
-- `GET /api/v1/integrations/:id` - Get integration by ID
+#### Integrations (Implemented)
+- `GET /api/v1/integrations` - List integrations (with sync stats)
+- `GET /api/v1/integrations/available` - List available integration types
+- `GET /api/v1/integrations/stats` - Get integration statistics
+- `GET /api/v1/integrations/:id` - Get integration by ID (masks sensitive config)
 - `POST /api/v1/integrations` - Create integration
 - `PUT /api/v1/integrations/:id` - Update integration
 - `DELETE /api/v1/integrations/:id` - Delete integration
+- `POST /api/v1/integrations/test` - Test connection with config (before creating)
+- `POST /api/v1/integrations/:id/test` - Test connection for existing integration
+- `POST /api/v1/integrations/:id/sync` - Trigger sync
+- `GET /api/v1/integrations/:id/logs` - Get sync logs
+
+**Supported Integration Types**: AWS, GCP, Azure, Okta, Google Workspace, Azure AD, GitHub, GitLab, Jira, Cloudflare, Datadog, PagerDuty, Webhook
 
 #### Frameworks (Implemented)
 - `GET /api/v1/frameworks` - List frameworks (supports `?category=` and `?is_system=` filters)
@@ -386,6 +398,7 @@ Ensure all required environment variables are set:
 - `TV_API_URL` - TitaniumVault API URL
 - `TV_API_KEY` - TitaniumVault API key
 - `CORS_ORIGINS` - Comma-separated list of allowed origins
+- `ENCRYPTION_KEY` - 256-bit key for encrypting integration credentials (generate with `openssl rand -hex 32`)
 - `ENVIRONMENT=production`
 
 ### Building for Production
@@ -453,13 +466,15 @@ Structured JSON logging is enabled by default:
 1. ~~Implement database migrations for all entities~~ ✓
 2. ~~Implement Framework routes with caching~~ ✓
 3. ~~Implement Controls routes with tests and mappings~~ ✓
-4. Implement Evidence, Policies, Risks routes
-5. Build Dashboard API endpoints
-6. Add comprehensive tests (unit, integration, e2e)
-7. Add more middleware (rate limiting, request ID, etc.)
-8. Implement integration framework for cloud providers
-9. Add OpenAPI/Swagger documentation
-10. Set up CI/CD pipelines
+4. ~~Implement Evidence, Policies, Risks routes~~ ✓
+5. ~~Build Dashboard API endpoints~~ ✓
+6. ~~Implement integration framework architecture~~ ✓ (v1.1.0)
+7. ~~Add credential encryption for integration configs~~ ✓ (v1.2.0)
+8. Implement actual integration providers (AWS, GitHub, Okta, etc.)
+9. Build scheduled sync job worker
+10. Add comprehensive tests (unit, integration, e2e)
+11. Add OpenAPI/Swagger documentation
+12. Set up CI/CD pipelines
 
 ## Contributing
 

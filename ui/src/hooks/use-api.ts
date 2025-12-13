@@ -225,3 +225,36 @@ export function useGapAnalysis(frameworkId: string) {
     { enabled: !!frameworkId }
   )
 }
+
+// Integration hooks
+export function useIntegrations(query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<{ data: import('@/types').IntegrationWithStats[], count: number }>(`/integrations${queryString}`)
+}
+
+export function useIntegration(id: string) {
+  return useApi<{ data: import('@/types').IntegrationWithStats }>(`/integrations/${id}`, {
+    enabled: !!id,
+  })
+}
+
+export function useIntegrationStats() {
+  return useApi<{ data: import('@/types').IntegrationStats }>('/integrations/stats')
+}
+
+export function useAvailableIntegrations() {
+  return useApi<{ data: import('@/types').AvailableIntegration[], count: number }>('/integrations/available')
+}
+
+export function useIntegrationSyncLogs(integrationId: string, limit?: number) {
+  return useApi<{ data: import('@/types').IntegrationSyncLog[], count: number }>(
+    `/integrations/${integrationId}/logs${limit ? `?limit=${limit}` : ''}`,
+    { enabled: !!integrationId }
+  )
+}

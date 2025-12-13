@@ -3,6 +3,7 @@ pub mod audit;
 pub mod control;
 pub mod evidence;
 pub mod framework;
+pub mod integration;
 pub mod policy;
 pub mod risk;
 pub mod vendor;
@@ -78,4 +79,11 @@ pub use audit::{
     Audit, AuditWithStats, AuditRequest, AuditRequestResponse, AuditFinding,
     CreateAudit, UpdateAudit, CreateAuditRequest, CreateAuditFinding, UpdateAuditFinding,
     CreateRequestResponse, ListAuditsQuery, AuditStats, AuditTypeCount,
+};
+
+pub use integration::{
+    Integration, IntegrationWithStats, IntegrationSyncLog, IntegrationType, IntegrationStatus,
+    SyncStatus, CreateIntegration, UpdateIntegration, ListIntegrationsQuery, IntegrationStats,
+    IntegrationTypeCount, AvailableIntegration, TestConnectionResult, TriggerSyncRequest,
+    get_available_integrations,
 };

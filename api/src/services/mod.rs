@@ -3,6 +3,7 @@ pub mod audit;
 pub mod control;
 pub mod evidence;
 pub mod framework;
+pub mod integration;
 pub mod policy;
 pub mod reports;
 pub mod risk;
@@ -12,12 +13,14 @@ use sqlx::PgPool;
 use crate::cache::CacheClient;
 use crate::search::SearchClient;
 use crate::storage::StorageClient;
+use crate::utils::EncryptionService;
 
 pub use asset::AssetService;
 pub use audit::AuditService;
 pub use control::ControlService;
 pub use evidence::EvidenceService;
 pub use framework::FrameworkService;
+pub use integration::IntegrationService;
 pub use policy::PolicyService;
 pub use reports::ReportsService;
 pub use risk::RiskService;
@@ -38,10 +41,17 @@ pub struct AppServices {
     pub asset: AssetService,
     pub audit: AuditService,
     pub reports: ReportsService,
+    pub integration: IntegrationService,
 }
 
 impl AppServices {
-    pub fn new(db: PgPool, cache: CacheClient, storage: StorageClient, search: SearchClient) -> Self {
+    pub fn new(
+        db: PgPool,
+        cache: CacheClient,
+        storage: StorageClient,
+        search: SearchClient,
+        encryption: EncryptionService,
+    ) -> Self {
         let framework = FrameworkService::new(db.clone(), cache.clone());
         let control = ControlService::new(db.clone(), cache.clone());
         let evidence = EvidenceService::new(db.clone(), cache.clone(), storage.clone());
@@ -51,6 +61,7 @@ impl AppServices {
         let asset = AssetService::new(db.clone(), cache.clone());
         let audit = AuditService::new(db.clone(), cache.clone());
         let reports = ReportsService::new(db.clone());
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports }
+        let integration = IntegrationService::new(db.clone(), cache.clone(), encryption);
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, integration }
     }
 }

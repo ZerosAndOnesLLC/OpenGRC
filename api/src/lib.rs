@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod config;
+pub mod integrations;
 pub mod middleware;
 pub mod models;
 pub mod routes;
