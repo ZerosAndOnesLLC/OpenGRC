@@ -88,15 +88,22 @@ pub struct SyncError {
     pub message: String,
     pub resource: Option<String>,
     pub recoverable: bool,
+    /// Error category for retry logic
+    pub category: Option<String>,
 }
 
 impl SyncError {
     pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        let code_str = code.into();
+        let message_str = message.into();
+        let category = crate::models::SyncErrorCategory::classify(&code_str, &message_str);
+
         Self {
-            code: code.into(),
-            message: message.into(),
+            code: code_str,
+            message: message_str,
             resource: None,
-            recoverable: false,
+            recoverable: category.should_retry(),
+            category: Some(category.as_str().to_string()),
         }
     }
 
@@ -105,9 +112,64 @@ impl SyncError {
         self
     }
 
+    pub fn not_recoverable(mut self) -> Self {
+        self.recoverable = false;
+        self.category = Some("permanent".to_string());
+        self
+    }
+
     pub fn with_resource(mut self, resource: impl Into<String>) -> Self {
         self.resource = Some(resource.into());
         self
+    }
+
+    pub fn with_category(mut self, category: &str) -> Self {
+        self.category = Some(category.to_string());
+        self
+    }
+
+    /// Create a rate limited error
+    pub fn rate_limited(message: impl Into<String>) -> Self {
+        Self {
+            code: "429".to_string(),
+            message: message.into(),
+            resource: None,
+            recoverable: true,
+            category: Some("rate_limited".to_string()),
+        }
+    }
+
+    /// Create an authentication error
+    pub fn auth_failure(message: impl Into<String>) -> Self {
+        Self {
+            code: "401".to_string(),
+            message: message.into(),
+            resource: None,
+            recoverable: false, // Needs manual re-auth
+            category: Some("auth_failure".to_string()),
+        }
+    }
+
+    /// Create a transient error (network, timeout)
+    pub fn transient(message: impl Into<String>) -> Self {
+        Self {
+            code: "transient".to_string(),
+            message: message.into(),
+            resource: None,
+            recoverable: true,
+            category: Some("transient".to_string()),
+        }
+    }
+
+    /// Create a configuration error
+    pub fn config_error(message: impl Into<String>) -> Self {
+        Self {
+            code: "config_error".to_string(),
+            message: message.into(),
+            resource: None,
+            recoverable: false,
+            category: Some("config_error".to_string()),
+        }
     }
 }
 

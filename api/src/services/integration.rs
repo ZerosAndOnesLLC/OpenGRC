@@ -1,12 +1,16 @@
 use crate::cache::{org_cache_key, CacheClient};
-use crate::integrations::{IntegrationProvider, IntegrationRegistry, SyncResult};
+use crate::integrations::{
+    generate_code_verifier, generate_state, IntegrationProvider, IntegrationRegistry, OAuthService,
+    SyncResult,
+};
 use crate::models::{
     CreateIntegration, HealthTrendPoint, Integration, IntegrationHealth, IntegrationHealthStats,
-    IntegrationHealthWithDetails, IntegrationStats, IntegrationSyncLog, IntegrationTypeCount,
-    IntegrationWithStats, ListIntegrationsQuery, RecentFailure, TestConnectionResult,
-    UpdateIntegration,
+    IntegrationHealthWithDetails, IntegrationOAuthState, IntegrationStats, IntegrationSyncLog,
+    IntegrationTypeCount, IntegrationWithStats, ListIntegrationsQuery, OAuthAuthorizeResponse,
+    RecentFailure, TestConnectionResult, UpdateIntegration,
 };
 use crate::utils::{AppError, AppResult, EncryptionService};
+use chrono::{Duration as ChronoDuration, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,16 +28,28 @@ pub struct IntegrationService {
     cache: CacheClient,
     registry: Arc<RwLock<IntegrationRegistry>>,
     encryption: EncryptionService,
+    oauth: Arc<OAuthService>,
 }
 
 impl IntegrationService {
-    pub fn new(db: PgPool, cache: CacheClient, encryption: EncryptionService) -> Self {
+    pub fn new(
+        db: PgPool,
+        cache: CacheClient,
+        encryption: EncryptionService,
+        oauth: OAuthService,
+    ) -> Self {
         Self {
             db,
             cache,
             registry: Arc::new(RwLock::new(IntegrationRegistry::new())),
             encryption,
+            oauth: Arc::new(oauth),
         }
+    }
+
+    /// Get the OAuth service
+    pub fn oauth_service(&self) -> Arc<OAuthService> {
+        self.oauth.clone()
     }
 
     /// Register an integration provider
@@ -66,7 +82,11 @@ impl IntegrationService {
         let integrations = sqlx::query_as::<_, Integration>(
             r#"
             SELECT id, organization_id, integration_type, name, config, status,
-                   last_sync_at, last_error, created_at, updated_at
+                   last_sync_at, last_error, created_at, updated_at,
+                   auth_method, oauth_access_token, oauth_refresh_token,
+                   oauth_token_expires_at, oauth_scopes, oauth_metadata,
+                   retry_enabled, max_retry_attempts, retry_backoff_base_ms,
+                   retry_backoff_max_ms, circuit_breaker_threshold, circuit_breaker_reset_ms
             FROM integrations
             WHERE organization_id = $1
               AND ($2::text IS NULL OR integration_type = $2)
@@ -147,7 +167,11 @@ impl IntegrationService {
         let integration = sqlx::query_as::<_, Integration>(
             r#"
             SELECT id, organization_id, integration_type, name, config, status,
-                   last_sync_at, last_error, created_at, updated_at
+                   last_sync_at, last_error, created_at, updated_at,
+                   auth_method, oauth_access_token, oauth_refresh_token,
+                   oauth_token_expires_at, oauth_scopes, oauth_metadata,
+                   retry_enabled, max_retry_attempts, retry_backoff_base_ms,
+                   retry_backoff_max_ms, circuit_breaker_threshold, circuit_breaker_reset_ms
             FROM integrations
             WHERE id = $1 AND organization_id = $2
             "#,
@@ -213,7 +237,11 @@ impl IntegrationService {
             INSERT INTO integrations (organization_id, integration_type, name, config, status)
             VALUES ($1, $2, $3, $4, 'inactive')
             RETURNING id, organization_id, integration_type, name, config, status,
-                      last_sync_at, last_error, created_at, updated_at
+                      last_sync_at, last_error, created_at, updated_at,
+                      auth_method, oauth_access_token, oauth_refresh_token,
+                      oauth_token_expires_at, oauth_scopes, oauth_metadata,
+                      retry_enabled, max_retry_attempts, retry_backoff_base_ms,
+                      retry_backoff_max_ms, circuit_breaker_threshold, circuit_breaker_reset_ms
             "#,
         )
         .bind(org_id)
@@ -273,7 +301,11 @@ impl IntegrationService {
                 status = COALESCE($5, status)
             WHERE id = $1 AND organization_id = $2
             RETURNING id, organization_id, integration_type, name, config, status,
-                      last_sync_at, last_error, created_at, updated_at
+                      last_sync_at, last_error, created_at, updated_at,
+                      auth_method, oauth_access_token, oauth_refresh_token,
+                      oauth_token_expires_at, oauth_scopes, oauth_metadata,
+                      retry_enabled, max_retry_attempts, retry_backoff_base_ms,
+                      retry_backoff_max_ms, circuit_breaker_threshold, circuit_breaker_reset_ms
             "#,
         )
         .bind(id)
@@ -386,14 +418,17 @@ impl IntegrationService {
         // Create sync log entry
         let sync_log = sqlx::query_as::<_, IntegrationSyncLog>(
             r#"
-            INSERT INTO integration_sync_logs (integration_id, sync_type, status)
-            VALUES ($1, $2, 'running')
+            INSERT INTO integration_sync_logs (integration_id, sync_type, status, max_retries)
+            VALUES ($1, $2, 'running', $3)
             RETURNING id, integration_id, sync_type, started_at, completed_at, status,
-                      records_processed, errors, created_at
+                      records_processed, errors, created_at,
+                      retry_attempt, max_retries, error_category, next_retry_at,
+                      retry_backoff_ms, parent_sync_id
             "#,
         )
         .bind(id)
         .bind(&sync_type)
+        .bind(_integration.integration.max_retry_attempts)
         .fetch_one(&self.db)
         .await?;
 
@@ -438,7 +473,9 @@ impl IntegrationService {
         let logs = sqlx::query_as::<_, IntegrationSyncLog>(
             r#"
             SELECT id, integration_id, sync_type, started_at, completed_at, status,
-                   records_processed, errors, created_at
+                   records_processed, errors, created_at,
+                   retry_attempt, max_retries, error_category, next_retry_at,
+                   retry_backoff_ms, parent_sync_id
             FROM integration_sync_logs
             WHERE integration_id = $1
             ORDER BY started_at DESC
@@ -470,13 +507,21 @@ impl IntegrationService {
             )
         };
 
+        // Determine error category from the first error
+        let error_category = if !result.success && !result.errors.is_empty() {
+            result.errors.first().and_then(|e| e.category.clone())
+        } else {
+            None
+        };
+
         sqlx::query(
             r#"
             UPDATE integration_sync_logs
             SET completed_at = NOW(),
                 status = $2,
                 records_processed = $3,
-                errors = $4
+                errors = $4,
+                error_category = $5
             WHERE id = $1
             "#,
         )
@@ -484,6 +529,7 @@ impl IntegrationService {
         .bind(status)
         .bind(result.records_processed)
         .bind(errors)
+        .bind(&error_category)
         .execute(&self.db)
         .await?;
 
@@ -511,6 +557,97 @@ impl IntegrationService {
         .await?;
 
         Ok(())
+    }
+
+    /// Get pending retries (sync logs that need retry)
+    pub async fn get_pending_retries(&self) -> AppResult<Vec<IntegrationSyncLog>> {
+        let logs = sqlx::query_as::<_, IntegrationSyncLog>(
+            r#"
+            SELECT id, integration_id, sync_type, started_at, completed_at, status,
+                   records_processed, errors, created_at,
+                   retry_attempt, max_retries, error_category, next_retry_at,
+                   retry_backoff_ms, parent_sync_id
+            FROM integration_sync_logs
+            WHERE status = 'failed'
+              AND next_retry_at IS NOT NULL
+              AND next_retry_at <= NOW()
+              AND retry_attempt < max_retries
+            ORDER BY next_retry_at ASC
+            LIMIT 100
+            "#,
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(logs)
+    }
+
+    /// Create a retry sync log entry
+    pub async fn create_retry_sync_log(
+        &self,
+        original_log: &IntegrationSyncLog,
+    ) -> AppResult<IntegrationSyncLog> {
+        let retry_attempt = original_log.retry_attempt + 1;
+
+        let sync_log = sqlx::query_as::<_, IntegrationSyncLog>(
+            r#"
+            INSERT INTO integration_sync_logs (
+                integration_id, sync_type, status, max_retries, retry_attempt, parent_sync_id
+            )
+            VALUES ($1, $2, 'running', $3, $4, $5)
+            RETURNING id, integration_id, sync_type, started_at, completed_at, status,
+                      records_processed, errors, created_at,
+                      retry_attempt, max_retries, error_category, next_retry_at,
+                      retry_backoff_ms, parent_sync_id
+            "#,
+        )
+        .bind(original_log.integration_id)
+        .bind(&original_log.sync_type)
+        .bind(original_log.max_retries)
+        .bind(retry_attempt)
+        .bind(original_log.id)
+        .fetch_one(&self.db)
+        .await?;
+
+        // Clear the next_retry_at on the original log since we're now processing it
+        sqlx::query(
+            r#"
+            UPDATE integration_sync_logs
+            SET next_retry_at = NULL
+            WHERE id = $1
+            "#,
+        )
+        .bind(original_log.id)
+        .execute(&self.db)
+        .await?;
+
+        tracing::info!(
+            "Created retry sync log {} for integration {} (attempt {})",
+            sync_log.id,
+            original_log.integration_id,
+            retry_attempt
+        );
+
+        Ok(sync_log)
+    }
+
+    /// Check if an integration's circuit breaker allows requests
+    pub async fn check_circuit_breaker(&self, integration_id: Uuid) -> AppResult<bool> {
+        let result: Option<(String,)> = sqlx::query_as(
+            r#"
+            SELECT circuit_breaker_state::text
+            FROM integration_health
+            WHERE integration_id = $1
+            "#,
+        )
+        .bind(integration_id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        match result {
+            Some((state,)) => Ok(state != "open"),
+            None => Ok(true), // No health record yet, allow
+        }
     }
 
     // ==================== Statistics ====================
@@ -631,7 +768,9 @@ impl IntegrationService {
                 sync_success_count_7d, sync_failure_count_7d,
                 last_check_at, last_check_message,
                 last_error_at, last_error_message,
-                created_at, updated_at
+                created_at, updated_at,
+                circuit_breaker_state::text as circuit_breaker_state,
+                circuit_breaker_opened_at, circuit_breaker_half_open_at
             FROM integration_health
             WHERE integration_id = ANY($1)
             "#,
@@ -669,6 +808,9 @@ impl IntegrationService {
                         last_error_message: None,
                         created_at: chrono::Utc::now(),
                         updated_at: chrono::Utc::now(),
+                        circuit_breaker_state: "closed".to_string(),
+                        circuit_breaker_opened_at: None,
+                        circuit_breaker_half_open_at: None,
                     }
                 });
 
@@ -719,7 +861,9 @@ impl IntegrationService {
                 sync_success_count_7d, sync_failure_count_7d,
                 last_check_at, last_check_message,
                 last_error_at, last_error_message,
-                created_at, updated_at
+                created_at, updated_at,
+                circuit_breaker_state::text as circuit_breaker_state,
+                circuit_breaker_opened_at, circuit_breaker_half_open_at
             FROM integration_health
             WHERE integration_id = $1
             "#,
@@ -927,5 +1071,324 @@ impl IntegrationService {
         tracing::info!("Created health snapshots for organization {}", org_id);
 
         Ok(())
+    }
+
+    // ==================== OAuth Operations ====================
+
+    /// Create OAuth authorization URL for an integration type
+    pub async fn create_oauth_authorization(
+        &self,
+        org_id: Uuid,
+        integration_type: &str,
+        scopes: Option<Vec<String>>,
+        redirect_uri: Option<String>,
+        metadata: Option<serde_json::Value>,
+    ) -> AppResult<OAuthAuthorizeResponse> {
+        if !self.oauth.is_configured(integration_type) {
+            return Err(AppError::ValidationError(format!(
+                "OAuth not configured for {}",
+                integration_type
+            )));
+        }
+
+        let state = generate_state();
+        let code_verifier = generate_code_verifier();
+        let expires_at = Utc::now() + ChronoDuration::minutes(10);
+
+        // Store OAuth state for callback validation
+        sqlx::query(
+            r#"
+            INSERT INTO integration_oauth_states
+                (organization_id, integration_type, state, code_verifier, redirect_uri, scopes, metadata, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            "#,
+        )
+        .bind(org_id)
+        .bind(integration_type)
+        .bind(&state)
+        .bind(&code_verifier)
+        .bind(&redirect_uri)
+        .bind(&scopes)
+        .bind(&metadata)
+        .bind(expires_at)
+        .execute(&self.db)
+        .await?;
+
+        // Get extra params from available integration config
+        let extra_params = crate::models::get_available_integrations()
+            .into_iter()
+            .find(|i| i.integration_type == integration_type)
+            .and_then(|i| i.oauth_config)
+            .and_then(|c| c.extra_params);
+
+        let auth_url = self
+            .oauth
+            .generate_auth_url(
+                integration_type,
+                &state,
+                Some(&code_verifier),
+                scopes.as_deref(),
+                extra_params.as_ref(),
+                metadata.as_ref(),
+            )
+            .map_err(|e| AppError::ValidationError(e))?;
+
+        Ok(OAuthAuthorizeResponse {
+            authorization_url: auth_url,
+            state,
+            expires_at,
+        })
+    }
+
+    /// Validate and consume OAuth state (for callback)
+    pub async fn validate_oauth_state(
+        &self,
+        state: &str,
+    ) -> AppResult<IntegrationOAuthState> {
+        let oauth_state = sqlx::query_as::<_, IntegrationOAuthState>(
+            r#"
+            DELETE FROM integration_oauth_states
+            WHERE state = $1 AND expires_at > NOW()
+            RETURNING id, organization_id, integration_type, state, code_verifier,
+                      redirect_uri, scopes, metadata, expires_at, created_at
+            "#,
+        )
+        .bind(state)
+        .fetch_optional(&self.db)
+        .await?
+        .ok_or_else(|| AppError::ValidationError("Invalid or expired OAuth state".to_string()))?;
+
+        Ok(oauth_state)
+    }
+
+    /// Exchange OAuth code for tokens and create/update integration
+    pub async fn complete_oauth_flow(
+        &self,
+        org_id: Uuid,
+        integration_type: &str,
+        code: &str,
+        code_verifier: Option<&str>,
+        integration_name: Option<&str>,
+        metadata: Option<&serde_json::Value>,
+    ) -> AppResult<Integration> {
+        // Exchange code for tokens
+        let tokens = self
+            .oauth
+            .exchange_code(integration_type, code, code_verifier, metadata)
+            .await
+            .map_err(|e| AppError::ExternalServiceError(e))?;
+
+        // Calculate token expiration
+        let token_expires_at = tokens
+            .expires_in
+            .map(|secs| Utc::now() + ChronoDuration::seconds(secs));
+
+        // Encrypt tokens
+        let encrypted_access_token = self
+            .encryption
+            .encrypt(&tokens.access_token)
+            .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))?;
+
+        let encrypted_refresh_token = tokens.refresh_token.as_ref().map(|rt| {
+            self.encryption
+                .encrypt(rt)
+                .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))
+        }).transpose()?;
+
+        let scopes: Option<Vec<String>> = tokens
+            .scope
+            .map(|s| s.split_whitespace().map(String::from).collect());
+
+        let name = integration_name.unwrap_or(integration_type);
+
+        // Create the integration with OAuth credentials
+        let integration = sqlx::query_as::<_, Integration>(
+            r#"
+            INSERT INTO integrations (
+                organization_id, integration_type, name, config, status,
+                auth_method, oauth_access_token, oauth_refresh_token,
+                oauth_token_expires_at, oauth_scopes, oauth_metadata
+            )
+            VALUES ($1, $2, $3, $4, 'active', 'oauth2', $5, $6, $7, $8, $9)
+            RETURNING id, organization_id, integration_type, name, config, status,
+                      last_sync_at, last_error, created_at, updated_at,
+                      auth_method, oauth_access_token, oauth_refresh_token,
+                      oauth_token_expires_at, oauth_scopes, oauth_metadata,
+                      retry_enabled, max_retry_attempts, retry_backoff_base_ms,
+                      retry_backoff_max_ms, circuit_breaker_threshold, circuit_breaker_reset_ms
+            "#,
+        )
+        .bind(org_id)
+        .bind(integration_type)
+        .bind(name)
+        .bind(serde_json::json!({})) // Empty config for OAuth integrations
+        .bind(&encrypted_access_token)
+        .bind(&encrypted_refresh_token)
+        .bind(token_expires_at)
+        .bind(&scopes)
+        .bind(metadata)
+        .fetch_one(&self.db)
+        .await
+        .map_err(|e| {
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err.constraint().is_some() {
+                    return AppError::Conflict("Integration already exists".to_string());
+                }
+            }
+            AppError::DatabaseError(e)
+        })?;
+
+        // Invalidate caches
+        self.invalidate_org_integration_caches(org_id).await?;
+
+        tracing::info!(
+            "Created OAuth integration: {} ({}) for org {}",
+            integration.name,
+            integration.id,
+            org_id
+        );
+
+        Ok(integration)
+    }
+
+    /// Refresh OAuth tokens for an integration
+    pub async fn refresh_oauth_tokens(
+        &self,
+        org_id: Uuid,
+        integration_id: Uuid,
+        force: bool,
+    ) -> AppResult<Integration> {
+        let integration = self.get_integration(org_id, integration_id).await?;
+
+        if integration.integration.auth_method != "oauth2" {
+            return Err(AppError::ValidationError(
+                "Integration does not use OAuth".to_string(),
+            ));
+        }
+
+        // Check if refresh is needed (unless forced)
+        if !force && !integration.integration.needs_token_refresh() {
+            return Ok(integration.integration);
+        }
+
+        let refresh_token = integration
+            .integration
+            .oauth_refresh_token
+            .as_ref()
+            .ok_or_else(|| {
+                AppError::ValidationError("No refresh token available".to_string())
+            })?;
+
+        // Decrypt refresh token
+        let decrypted_refresh_token = self
+            .encryption
+            .decrypt(refresh_token)
+            .map_err(|e| AppError::InternalServerError(format!("Decryption failed: {}", e)))?;
+
+        // Refresh tokens
+        let tokens = self
+            .oauth
+            .refresh_token(
+                &integration.integration.integration_type,
+                &decrypted_refresh_token,
+                integration.integration.oauth_metadata.as_ref(),
+            )
+            .await
+            .map_err(|e| AppError::ExternalServiceError(e))?;
+
+        // Encrypt new tokens
+        let encrypted_access_token = self
+            .encryption
+            .encrypt(&tokens.access_token)
+            .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))?;
+
+        let encrypted_refresh_token = tokens
+            .refresh_token
+            .as_ref()
+            .map(|rt| {
+                self.encryption
+                    .encrypt(rt)
+                    .map_err(|e| AppError::InternalServerError(format!("Encryption failed: {}", e)))
+            })
+            .transpose()?;
+
+        let token_expires_at = tokens
+            .expires_in
+            .map(|secs| Utc::now() + ChronoDuration::seconds(secs));
+
+        // Update integration with new tokens
+        let updated = sqlx::query_as::<_, Integration>(
+            r#"
+            UPDATE integrations
+            SET
+                oauth_access_token = $3,
+                oauth_refresh_token = COALESCE($4, oauth_refresh_token),
+                oauth_token_expires_at = $5,
+                updated_at = NOW()
+            WHERE id = $1 AND organization_id = $2
+            RETURNING id, organization_id, integration_type, name, config, status,
+                      last_sync_at, last_error, created_at, updated_at,
+                      auth_method, oauth_access_token, oauth_refresh_token,
+                      oauth_token_expires_at, oauth_scopes, oauth_metadata,
+                      retry_enabled, max_retry_attempts, retry_backoff_base_ms,
+                      retry_backoff_max_ms, circuit_breaker_threshold, circuit_breaker_reset_ms
+            "#,
+        )
+        .bind(integration_id)
+        .bind(org_id)
+        .bind(&encrypted_access_token)
+        .bind(&encrypted_refresh_token)
+        .bind(token_expires_at)
+        .fetch_one(&self.db)
+        .await?;
+
+        // Invalidate cache
+        self.invalidate_integration_cache(org_id, integration_id).await?;
+
+        tracing::info!("Refreshed OAuth tokens for integration {}", integration_id);
+
+        Ok(updated)
+    }
+
+    /// Get decrypted access token for an integration (for use in sync operations)
+    pub async fn get_access_token(
+        &self,
+        org_id: Uuid,
+        integration_id: Uuid,
+    ) -> AppResult<String> {
+        let integration = self.get_integration(org_id, integration_id).await?;
+
+        // Auto-refresh if needed
+        let integration = if integration.integration.needs_token_refresh() {
+            self.refresh_oauth_tokens(org_id, integration_id, false).await?
+        } else {
+            integration.integration
+        };
+
+        let encrypted_token = integration
+            .oauth_access_token
+            .as_ref()
+            .ok_or_else(|| AppError::ValidationError("No access token available".to_string()))?;
+
+        let decrypted = self
+            .encryption
+            .decrypt(encrypted_token)
+            .map_err(|e| AppError::InternalServerError(format!("Decryption failed: {}", e)))?;
+
+        Ok(decrypted)
+    }
+
+    /// Cleanup expired OAuth states (should be called periodically)
+    pub async fn cleanup_expired_oauth_states(&self) -> AppResult<u64> {
+        let result = sqlx::query("DELETE FROM integration_oauth_states WHERE expires_at < NOW()")
+            .execute(&self.db)
+            .await?;
+
+        let deleted = result.rows_affected();
+        if deleted > 0 {
+            tracing::info!("Cleaned up {} expired OAuth states", deleted);
+        }
+
+        Ok(deleted)
     }
 }

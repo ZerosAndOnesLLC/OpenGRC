@@ -11,6 +11,7 @@ pub mod vendor;
 
 use sqlx::PgPool;
 use crate::cache::CacheClient;
+use crate::integrations::OAuthService;
 use crate::search::SearchClient;
 use crate::storage::StorageClient;
 use crate::utils::EncryptionService;
@@ -51,6 +52,7 @@ impl AppServices {
         storage: StorageClient,
         search: SearchClient,
         encryption: EncryptionService,
+        oauth_redirect_base_url: String,
     ) -> Self {
         let framework = FrameworkService::new(db.clone(), cache.clone());
         let control = ControlService::new(db.clone(), cache.clone());
@@ -61,7 +63,11 @@ impl AppServices {
         let asset = AssetService::new(db.clone(), cache.clone());
         let audit = AuditService::new(db.clone(), cache.clone());
         let reports = ReportsService::new(db.clone());
-        let integration = IntegrationService::new(db.clone(), cache.clone(), encryption);
+
+        // Initialize OAuth service from environment
+        let oauth = OAuthService::from_env(oauth_redirect_base_url);
+        let integration = IntegrationService::new(db.clone(), cache.clone(), encryption, oauth);
+
         Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, integration }
     }
 }

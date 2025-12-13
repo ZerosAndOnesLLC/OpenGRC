@@ -19,6 +19,8 @@ pub struct Config {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// Base URL for the API (used for OAuth callbacks)
+    pub api_base_url: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -88,6 +90,8 @@ impl Config {
                     .unwrap_or_else(|_| "8080".to_string())
                     .parse()
                     .expect("PORT must be a valid u16"),
+                api_base_url: env::var("API_BASE_URL")
+                    .unwrap_or_else(|_| "http://localhost:8080".to_string()),
             },
             database: DatabaseConfig {
                 url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),

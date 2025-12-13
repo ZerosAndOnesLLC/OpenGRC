@@ -89,4 +89,9 @@ pub use integration::{
     // Health monitoring types
     HealthStatus, IntegrationHealth, IntegrationHealthWithDetails, IntegrationHealthSnapshot,
     IntegrationHealthStats, HealthTrendPoint, RecentFailure,
+    // OAuth types
+    AuthMethod, IntegrationOAuthState, OAuthAuthorizeRequest, OAuthAuthorizeResponse,
+    OAuthCallbackParams, OAuthTokenResponse, OAuthRefreshRequest, OAuthProviderConfig,
+    // Error handling and retry types
+    SyncErrorCategory, CircuitBreakerState,
 };

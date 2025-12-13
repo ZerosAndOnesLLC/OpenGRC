@@ -67,7 +67,14 @@ async fn main() -> Result<()> {
         .expect("Failed to initialize encryption service - check ENCRYPTION_KEY");
     tracing::info!("Encryption service initialized");
 
-    let services = Arc::new(AppServices::new(db_pool, cache, storage, search, encryption));
+    let services = Arc::new(AppServices::new(
+        db_pool,
+        cache,
+        storage,
+        search,
+        encryption,
+        config.server.api_base_url.clone(),
+    ));
 
     let auth_state = Arc::new(AuthState::new(
         config.titanium_vault.api_url.clone(),

@@ -18,6 +18,7 @@ pub enum AppError {
     RedisError(redis::RedisError),
     SearchError(String),
     ValidationError(String),
+    ExternalServiceError(String),
 }
 
 impl fmt::Display for AppError {
@@ -33,6 +34,7 @@ impl fmt::Display for AppError {
             AppError::RedisError(err) => write!(f, "Redis Error: {}", err),
             AppError::SearchError(msg) => write!(f, "Search Error: {}", msg),
             AppError::ValidationError(msg) => write!(f, "Validation Error: {}", msg),
+            AppError::ExternalServiceError(msg) => write!(f, "External Service Error: {}", msg),
         }
     }
 }
@@ -70,6 +72,13 @@ impl IntoResponse for AppError {
                 )
             }
             AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::ExternalServiceError(msg) => {
+                tracing::error!("External service error: {}", msg);
+                (
+                    StatusCode::BAD_GATEWAY,
+                    format!("External service error: {}", msg),
+                )
+            }
         };
 
         let body = Json(json!({

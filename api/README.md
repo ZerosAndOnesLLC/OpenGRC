@@ -109,7 +109,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "1.3.0"
+  "version": "1.4.0"
 }
 ```
 
@@ -290,7 +290,7 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 
 #### Integrations (Implemented)
 - `GET /api/v1/integrations` - List integrations (with sync stats)
-- `GET /api/v1/integrations/available` - List available integration types
+- `GET /api/v1/integrations/available` - List available integration types (includes auth_methods and oauth_config)
 - `GET /api/v1/integrations/stats` - Get integration statistics
 - `GET /api/v1/integrations/:id` - Get integration by ID (masks sensitive config)
 - `POST /api/v1/integrations` - Create integration
@@ -300,6 +300,53 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 - `POST /api/v1/integrations/:id/test` - Test connection for existing integration
 - `POST /api/v1/integrations/:id/sync` - Trigger sync
 - `GET /api/v1/integrations/:id/logs` - Get sync logs
+
+##### OAuth2 Connection Flow (Implemented)
+- `POST /api/v1/integrations/oauth/:type/authorize` - Start OAuth authorization flow
+- `GET /api/v1/integrations/oauth/:type/check` - Check OAuth configuration status
+- `GET /api/v1/integrations/oauth/callback` - OAuth callback handler (public endpoint)
+- `POST /api/v1/integrations/:id/oauth/refresh` - Refresh OAuth tokens
+
+**OAuth Environment Variables**:
+```bash
+# GitHub OAuth
+GITHUB_OAUTH_CLIENT_ID=your_client_id
+GITHUB_OAUTH_CLIENT_SECRET=your_client_secret
+
+# GitLab OAuth
+GITLAB_OAUTH_CLIENT_ID=your_client_id
+GITLAB_OAUTH_CLIENT_SECRET=your_client_secret
+
+# Google (GCP & Workspace) OAuth
+GOOGLE_OAUTH_CLIENT_ID=your_client_id
+GOOGLE_OAUTH_CLIENT_SECRET=your_client_secret
+
+# Azure (Azure AD & Entra ID) OAuth
+AZURE_OAUTH_CLIENT_ID=your_client_id
+AZURE_OAUTH_CLIENT_SECRET=your_client_secret
+AZURE_OAUTH_TENANT_ID=common  # or specific tenant
+
+# Okta OAuth
+OKTA_OAUTH_CLIENT_ID=your_client_id
+OKTA_OAUTH_CLIENT_SECRET=your_client_secret
+
+# Atlassian (Jira) OAuth
+ATLASSIAN_OAUTH_CLIENT_ID=your_client_id
+ATLASSIAN_OAUTH_CLIENT_SECRET=your_client_secret
+
+# API Base URL (required for OAuth callbacks)
+API_BASE_URL=https://api.your-domain.com
+```
+
+**OAuth Flow**:
+1. Client calls `POST /api/v1/integrations/oauth/:type/authorize` with optional scopes and integration name
+2. Server returns `authorization_url` - client redirects user to this URL
+3. User authenticates with provider and grants access
+4. Provider redirects to `/api/v1/integrations/oauth/callback` with code
+5. Server exchanges code for tokens and creates integration
+6. Server redirects to UI with success or error
+
+**Supported OAuth Providers**: GitHub, GitLab, Google (GCP, Workspace), Azure (AD, Cloud), Okta, Atlassian (Jira)
 
 ##### Integration Health Monitoring (Implemented)
 - `GET /api/v1/integrations/health` - Get health for all integrations (sorted by severity)
@@ -322,6 +369,33 @@ All protected endpoints require an `Authorization: Bearer <token>` header.
 - Last error message and timestamp
 
 **Supported Integration Types**: AWS, GCP, Azure, Okta, Google Workspace, Azure AD, GitHub, GitLab, Jira, Cloudflare, Datadog, PagerDuty, Webhook
+
+##### Error Handling & Retry Logic (Implemented)
+
+**Error Categories**:
+- `transient` - Temporary errors (network, timeout) - automatic retry with exponential backoff
+- `rate_limited` - Rate limit hit - retry with longer backoff
+- `auth_failure` - Authentication error - may require re-authentication
+- `config_error` - Configuration problem - no retry, user needs to fix
+- `permanent` - Permanent error - no retry
+- `unknown` - Unclassified error - retry allowed
+
+**Retry Configuration** (per integration):
+- `retry_enabled` - Enable/disable automatic retries (default: true)
+- `max_retry_attempts` - Maximum retry attempts (default: 3)
+- `retry_backoff_base_ms` - Base backoff delay (default: 1000ms)
+- `retry_backoff_max_ms` - Maximum backoff delay (default: 300000ms / 5 min)
+
+**Circuit Breaker**:
+- Automatically opens after consecutive failures (threshold: 5)
+- When open, sync requests are blocked
+- Transitions to half-open after reset period (default: 10 min)
+- Closes on successful sync
+
+**Circuit Breaker States**:
+- `closed` - Normal operation, requests allowed
+- `open` - Failures exceeded threshold, requests blocked
+- `half_open` - Testing recovery, limited requests allowed
 
 #### Frameworks (Implemented)
 - `GET /api/v1/frameworks` - List frameworks (supports `?category=` and `?is_system=` filters)
@@ -491,12 +565,13 @@ Structured JSON logging is enabled by default:
 6. ~~Implement integration framework architecture~~ ✓ (v1.1.0)
 7. ~~Add credential encryption for integration configs~~ ✓ (v1.2.0)
 8. ~~Add integration health monitoring dashboard~~ ✓ (v1.3.0)
-9. Implement OAuth2 connection flow for integrations
-10. Build scheduled sync job worker (cron-based)
-11. Implement actual integration providers (AWS, GitHub, Okta, etc.)
-12. Add comprehensive tests (unit, integration, e2e)
-13. Add OpenAPI/Swagger documentation
-14. Set up CI/CD pipelines
+9. ~~Implement OAuth2 connection flow for integrations~~ ✓ (v1.4.0)
+10. ~~Implement error handling & retry logic with circuit breaker~~ ✓ (v1.4.0)
+11. Build scheduled sync job worker (cron-based)
+12. Implement actual integration providers (AWS, GitHub, Okta, etc.)
+13. Add comprehensive tests (unit, integration, e2e)
+14. Add OpenAPI/Swagger documentation
+15. Set up CI/CD pipelines
 
 ## Contributing
 

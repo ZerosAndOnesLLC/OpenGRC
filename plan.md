@@ -453,9 +453,9 @@ notifications (
 - [x] Sync triggering and sync log tracking
 - [x] Sensitive credential masking in API responses
 - [x] Credential vault (AES-256-GCM encrypted storage)
-- [ ] OAuth2 connection flow
-- [ ] Sync scheduling (cron-based worker)
-- [ ] Error handling & retry logic
+- [x] OAuth2 connection flow
+- [ ] Sync scheduling (cron-based worker) - DEFERRED
+- [x] Error handling & retry logic
 - [x] Integration health monitoring dashboard
 
 #### 2.2 Cloud Provider Integrations

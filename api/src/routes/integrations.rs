@@ -1,5 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
+    response::Redirect,
     Extension, Json,
 };
 use serde::Deserialize;
@@ -9,8 +10,8 @@ use uuid::Uuid;
 
 use crate::middleware::AuthUser;
 use crate::models::{
-    get_available_integrations, CreateIntegration, ListIntegrationsQuery, TriggerSyncRequest,
-    UpdateIntegration,
+    get_available_integrations, CreateIntegration, ListIntegrationsQuery, OAuthAuthorizeRequest,
+    OAuthCallbackParams, OAuthRefreshRequest, TriggerSyncRequest, UpdateIntegration,
 };
 use crate::services::AppServices;
 use crate::utils::{AppError, AppResult};
@@ -310,6 +311,157 @@ pub async fn get_health_trend(
         "data": trend,
         "count": trend.len()
     })))
+}
+
+// ==================== OAuth Operations ====================
+
+/// Start OAuth authorization flow for an integration type
+pub async fn oauth_authorize(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(integration_type): Path<String>,
+    Json(input): Json<OAuthAuthorizeRequest>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+
+    // Check if OAuth is supported for this type
+    let available = get_available_integrations();
+    let integration_info = available
+        .iter()
+        .find(|i| i.integration_type == integration_type)
+        .ok_or_else(|| AppError::NotFound(format!("Unknown integration type: {}", integration_type)))?;
+
+    if !integration_info.auth_methods.contains(&"oauth2".to_string()) {
+        return Err(AppError::ValidationError(format!(
+            "{} does not support OAuth2 authentication",
+            integration_type
+        )));
+    }
+
+    // Build metadata for the OAuth state
+    let mut metadata = serde_json::json!({});
+    if let Some(name) = &input.integration_name {
+        metadata["integration_name"] = serde_json::json!(name);
+    }
+
+    let response = services
+        .integration
+        .create_oauth_authorization(
+            org_id,
+            &integration_type,
+            input.scopes,
+            input.redirect_uri,
+            Some(metadata),
+        )
+        .await?;
+
+    Ok(Json(json!({
+        "data": response,
+        "message": "Redirect user to authorization_url"
+    })))
+}
+
+/// Handle OAuth callback from provider
+pub async fn oauth_callback(
+    State(services): State<Arc<AppServices>>,
+    Query(params): Query<OAuthCallbackParams>,
+) -> Result<Redirect, AppError> {
+    // Check for error from provider
+    if let Some(error) = &params.error {
+        let error_desc = params.error_description.as_deref().unwrap_or("Unknown error");
+        tracing::error!("OAuth callback error: {} - {}", error, error_desc);
+
+        // Redirect to UI with error
+        let redirect_url = format!(
+            "/integrations/oauth/error?error={}&description={}",
+            urlencoding::encode(error),
+            urlencoding::encode(error_desc)
+        );
+        return Ok(Redirect::temporary(&redirect_url));
+    }
+
+    // Validate and consume the OAuth state
+    let oauth_state = services
+        .integration
+        .validate_oauth_state(&params.state)
+        .await?;
+
+    // Extract integration name from metadata
+    let integration_name = oauth_state
+        .metadata
+        .as_ref()
+        .and_then(|m| m.get("integration_name"))
+        .and_then(|n| n.as_str());
+
+    // Complete the OAuth flow
+    let integration = services
+        .integration
+        .complete_oauth_flow(
+            oauth_state.organization_id,
+            &oauth_state.integration_type,
+            &params.code,
+            oauth_state.code_verifier.as_deref(),
+            integration_name,
+            oauth_state.metadata.as_ref(),
+        )
+        .await?;
+
+    // Redirect to UI with success
+    let redirect_url = format!(
+        "/integrations/{}?oauth=success",
+        integration.id
+    );
+    Ok(Redirect::temporary(&redirect_url))
+}
+
+/// Refresh OAuth tokens for an integration
+pub async fn oauth_refresh(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<OAuthRefreshRequest>,
+) -> AppResult<Json<Value>> {
+    let org_id = get_org_id(&user)?;
+    let force = input.force.unwrap_or(false);
+
+    let integration = services
+        .integration
+        .refresh_oauth_tokens(org_id, id, force)
+        .await?;
+
+    Ok(Json(json!({
+        "data": {
+            "id": integration.id,
+            "token_expires_at": integration.oauth_token_expires_at,
+            "refreshed": true
+        },
+        "message": "OAuth tokens refreshed successfully"
+    })))
+}
+
+/// Check OAuth configuration for a provider
+pub async fn oauth_check(
+    State(services): State<Arc<AppServices>>,
+    Path(integration_type): Path<String>,
+) -> Json<Value> {
+    let oauth_service = services.integration.oauth_service();
+    let is_configured = oauth_service.is_configured(&integration_type);
+
+    // Get available info
+    let available = get_available_integrations();
+    let supports_oauth = available
+        .iter()
+        .find(|i| i.integration_type == integration_type)
+        .map(|i| i.auth_methods.contains(&"oauth2".to_string()))
+        .unwrap_or(false);
+
+    Json(json!({
+        "data": {
+            "integration_type": integration_type,
+            "supports_oauth": supports_oauth,
+            "oauth_configured": is_configured
+        }
+    }))
 }
 
 /// Mask sensitive fields in config (passwords, tokens, secrets)

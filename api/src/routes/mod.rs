@@ -59,6 +59,8 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/policy-templates/categories", get(policy_templates::get_template_categories))
         .route("/api/v1/policy-templates/frameworks", get(policy_templates::get_template_frameworks))
         .route("/api/v1/policy-templates/:id", get(policy_templates::get_policy_template))
+        // OAuth callback - must be public since it's called by OAuth providers
+        .route("/api/v1/integrations/oauth/callback", get(integrations::oauth_callback))
         .with_state(services.clone());
 
     // SSO routes - no auth middleware (used to establish authentication)
@@ -151,6 +153,10 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/integrations/:id/test", post(integrations::test_connection))
         .route("/api/v1/integrations/:id/sync", post(integrations::trigger_sync))
         .route("/api/v1/integrations/:id/logs", get(integrations::get_sync_logs))
+        // OAuth routes
+        .route("/api/v1/integrations/oauth/:type/authorize", post(integrations::oauth_authorize))
+        .route("/api/v1/integrations/oauth/:type/check", get(integrations::oauth_check))
+        .route("/api/v1/integrations/:id/oauth/refresh", post(integrations::oauth_refresh))
         // Integration Health Monitoring
         .route("/api/v1/integrations/health", get(integrations::get_all_health))
         .route("/api/v1/integrations/health/stats", get(integrations::get_health_stats))
