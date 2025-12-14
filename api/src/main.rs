@@ -74,6 +74,7 @@ async fn main() -> Result<()> {
         search,
         encryption,
         config.server.api_base_url.clone(),
+        &config,
     ).await);
 
     let auth_state = Arc::new(AuthState::new(

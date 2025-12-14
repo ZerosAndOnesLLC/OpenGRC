@@ -7,6 +7,7 @@ pub mod evidence;
 pub mod frameworks;
 pub mod health;
 pub mod integrations;
+pub mod notifications;
 pub mod policies;
 pub mod policy_templates;
 pub mod reports;
@@ -98,6 +99,7 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/evidence/:id/download-url", get(evidence::get_download_url))
         .route("/api/v1/evidence/:id/upload", post(evidence::upload_file))
         .route("/api/v1/policies", get(policies::list_policies))
+        .route("/api/v1/policies/pending", get(policies::get_pending_policies))
         .route("/api/v1/policies/stats", get(policies::get_policy_stats))
         .route("/api/v1/policies/:id", get(policies::get_policy))
         .route("/api/v1/policies", post(policies::create_policy))
@@ -174,11 +176,17 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/frameworks/:framework_id/requirements/:id", get(frameworks::get_requirement))
         .route("/api/v1/frameworks/:framework_id/requirements", post(frameworks::create_requirement))
         .route("/api/v1/frameworks/:framework_id/requirements/batch", post(frameworks::batch_create_requirements))
+        .route("/api/v1/frameworks/:framework_id/requirements/import", post(frameworks::import_requirements))
         .route("/api/v1/frameworks/:framework_id/requirements/:id", put(frameworks::update_requirement))
         .route("/api/v1/frameworks/:framework_id/requirements/:id", delete(frameworks::delete_requirement))
         .route("/api/v1/frameworks/:framework_id/gap-analysis", get(frameworks::get_gap_analysis))
         .route("/api/v1/reports/types", get(reports::list_report_types))
         .route("/api/v1/reports/:report_type/csv", get(reports::generate_csv_report))
+        .route("/api/v1/reports/:report_type/pdf", get(reports::generate_pdf_report))
+        .route("/api/v1/notifications", get(notifications::list_notifications))
+        .route("/api/v1/notifications/count", get(notifications::get_unread_count))
+        .route("/api/v1/notifications/read-all", put(notifications::mark_all_as_read))
+        .route("/api/v1/notifications/:id/read", put(notifications::mark_as_read))
         .route("/api/v1/search", get(search::search))
         .route("/api/v1/search/status", get(search::search_status))
         .route("/api/v1/search/reindex", post(search::reindex_all))

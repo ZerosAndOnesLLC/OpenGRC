@@ -427,6 +427,79 @@ impl PolicyService {
         Ok(acknowledgments)
     }
 
+    /// Get all published policies pending acknowledgment by a specific user
+    pub async fn get_pending_policies(
+        &self,
+        org_id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<Vec<PolicyWithStats>> {
+        // Get all published policies that the user hasn't acknowledged yet
+        let policies = sqlx::query_as::<_, Policy>(
+            r#"
+            SELECT p.id, p.organization_id, p.code, p.title, p.category, p.content, p.version, p.status,
+                   p.owner_id, p.approver_id, p.approved_at, p.effective_date, p.review_date,
+                   p.created_at, p.updated_at
+            FROM policies p
+            WHERE p.organization_id = $1
+              AND p.status = 'published'
+              AND NOT EXISTS (
+                  SELECT 1 FROM policy_acknowledgments pa
+                  WHERE pa.policy_id = p.id
+                    AND pa.policy_version = p.version
+                    AND pa.user_id = $2
+              )
+            ORDER BY p.effective_date DESC NULLS LAST, p.updated_at DESC
+            "#,
+        )
+        .bind(org_id)
+        .bind(user_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        // Get acknowledgment counts for all policies in one query
+        let policy_ids: Vec<Uuid> = policies.iter().map(|p| p.id).collect();
+
+        let ack_counts: Vec<(Uuid, i64, i64)> = if !policy_ids.is_empty() {
+            sqlx::query_as(
+                r#"
+                SELECT
+                    p.id,
+                    COUNT(pa.id) as acknowledged,
+                    COALESCE((
+                        SELECT COUNT(*) FROM users u
+                        WHERE u.organization_id = p.organization_id
+                    ), 0) - COUNT(pa.id) as pending
+                FROM policies p
+                LEFT JOIN policy_acknowledgments pa ON p.id = pa.policy_id AND pa.policy_version = p.version
+                WHERE p.id = ANY($1)
+                GROUP BY p.id, p.organization_id
+                "#,
+            )
+            .bind(&policy_ids)
+            .fetch_all(&self.db)
+            .await?
+        } else {
+            vec![]
+        };
+
+        let ack_map: std::collections::HashMap<Uuid, (i64, i64)> =
+            ack_counts.into_iter().map(|(id, ack, pending)| (id, (ack, pending))).collect();
+
+        let result: Vec<PolicyWithStats> = policies
+            .into_iter()
+            .map(|policy| {
+                let (ack_count, pending) = ack_map.get(&policy.id).copied().unwrap_or((0, 0));
+                PolicyWithStats {
+                    policy,
+                    acknowledgment_count: ack_count,
+                    pending_acknowledgments: pending.max(0),
+                }
+            })
+            .collect();
+
+        Ok(result)
+    }
+
     // ==================== Statistics ====================
 
     /// Get policy statistics

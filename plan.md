@@ -406,7 +406,7 @@ notifications (
 #### 1.2 Framework Management
 - [x] Pre-loaded SOC 2 Trust Service Criteria
 - [x] Framework requirement browser
-- [ ] Custom framework creation (system frameworks only)
+- [x] Custom framework creation with bulk import (CSV/JSON)
 - [x] Control library with templates
 - [x] Control-to-requirement mapping
 - [x] Gap analysis dashboard
@@ -424,8 +424,8 @@ notifications (
 - [x] Policy templates (25 common policies)
 - [x] Version control with diff view
 - [x] Approval workflow
-- [ ] Employee acknowledgment portal (infrastructure exists, portal UI incomplete)
-- [ ] Acknowledgment tracking & reminders (tracking exists, reminders not implemented)
+- [x] Employee acknowledgment portal (/policies/pending)
+- [x] Acknowledgment tracking & reminders (email via SES + in-app notifications)
 
 #### 1.5 Risk Register
 - [x] Risk CRUD with scoring matrix
@@ -440,7 +440,7 @@ notifications (
 - [x] Control health overview
 - [x] Upcoming tasks/deadlines
 - [x] Framework coverage reports (CSV export)
-- [ ] Export to PDF (CSV implemented, PDF not implemented)
+- [x] PDF export with branding, headers/footers, and summary charts
 
 ### Phase 2: Automation & Integrations
 **Goal: Reduce manual work by 80%**
@@ -2077,12 +2077,9 @@ cargo run
 - [x] Control-to-requirement mapping UI
 
 ### Remaining Phase 1 Work
-- [ ] Report generation - PDF export (CSV export implemented)
-- [ ] Custom framework creation UI (system frameworks only currently)
-- [ ] Employee policy acknowledgment portal (infrastructure exists, UI incomplete)
-- [ ] Acknowledgment tracking reminders
+All Phase 1 items complete!
 
-**Phase 1 ~93% Complete** - Core features implemented, minor gaps remaining.
+**Phase 1 100% Complete** - All core features implemented.
 
 ### Completed in Phase 2 Integration Framework
 - [x] Pluggable integration architecture with IntegrationProvider trait

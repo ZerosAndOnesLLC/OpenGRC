@@ -5,6 +5,8 @@ pub mod control;
 pub mod evidence;
 pub mod framework;
 pub mod integration;
+pub mod notification;
+pub mod pdf;
 pub mod policy;
 pub mod reports;
 pub mod risk;
@@ -12,6 +14,7 @@ pub mod vendor;
 
 use sqlx::PgPool;
 use crate::cache::CacheClient;
+use crate::config::Config;
 use crate::integrations::{AwsProvider, GitHubProvider, JiraProvider, OAuthService};
 use crate::search::SearchClient;
 use crate::storage::StorageClient;
@@ -24,6 +27,8 @@ pub use control::ControlService;
 pub use evidence::EvidenceService;
 pub use framework::FrameworkService;
 pub use integration::IntegrationService;
+pub use notification::NotificationService;
+pub use pdf::PdfService;
 pub use policy::PolicyService;
 pub use reports::ReportsService;
 pub use risk::RiskService;
@@ -44,6 +49,8 @@ pub struct AppServices {
     pub asset: AssetService,
     pub audit: AuditService,
     pub reports: ReportsService,
+    pub pdf: PdfService,
+    pub notification: NotificationService,
     pub integration: IntegrationService,
     pub aws: AwsService,
 }
@@ -56,6 +63,7 @@ impl AppServices {
         search: SearchClient,
         encryption: EncryptionService,
         oauth_redirect_base_url: String,
+        config: &Config,
     ) -> Self {
         let framework = FrameworkService::new(db.clone(), cache.clone());
         let control = ControlService::new(db.clone(), cache.clone());
@@ -66,6 +74,8 @@ impl AppServices {
         let asset = AssetService::new(db.clone(), cache.clone());
         let audit = AuditService::new(db.clone(), cache.clone());
         let reports = ReportsService::new(db.clone());
+        let pdf = PdfService::new(db.clone());
+        let notification = NotificationService::new(db.clone(), cache.clone(), config).await;
 
         // Initialize OAuth service from environment
         let oauth = OAuthService::from_env(oauth_redirect_base_url);
@@ -84,6 +94,6 @@ impl AppServices {
         // AWS-specific service for querying synced data
         let aws = AwsService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, integration, aws }
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws }
     }
 }

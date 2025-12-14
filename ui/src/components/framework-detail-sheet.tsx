@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,8 @@ import {
   ChevronRight,
   ChevronDown,
   FileText,
+  Upload,
+  Download,
 } from "lucide-react"
 import { useFramework, useMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api-client'
@@ -194,6 +196,171 @@ function RequirementForm({
   )
 }
 
+interface ImportDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  frameworkId: string
+  onSuccess: () => void
+}
+
+function ImportDialog({
+  open,
+  onOpenChange,
+  frameworkId,
+  onSuccess,
+}: ImportDialogProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      setError(null)
+    }
+  }
+
+  const handleImport = async () => {
+    if (!selectedFile) {
+      setError('Please select a file')
+      return
+    }
+
+    const extension = selectedFile.name.toLowerCase().split('.').pop()
+    if (extension !== 'csv' && extension !== 'json') {
+      setError('File must be .csv or .json')
+      return
+    }
+
+    setIsImporting(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+
+      const token = localStorage.getItem('auth_token')
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
+      const response = await fetch(
+        `${baseUrl}/api/v1/frameworks/${frameworkId}/requirements/import`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Import failed')
+      }
+
+      const result = await response.json()
+      onOpenChange(false)
+      setSelectedFile(null)
+      onSuccess()
+      alert(`Successfully imported ${result.imported} requirements`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const downloadTemplate = (format: 'csv' | 'json') => {
+    if (format === 'csv') {
+      const csv = 'code,name,description,category,sort_order\nREQ-001,Requirement Name,Description text,Category Name,1\n'
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'requirements-template.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } else {
+      const json = JSON.stringify([
+        {
+          code: 'REQ-001',
+          name: 'Requirement Name',
+          description: 'Description text',
+          category: 'Category Name',
+          sort_order: 1
+        }
+      ], null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'requirements-template.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Import Requirements</DialogTitle>
+          <DialogDescription>
+            Import requirements from a CSV or JSON file. Download a template to see the expected format.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadTemplate('csv')}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              CSV Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadTemplate('json')}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              JSON Template
+            </Button>
+          </div>
+          <div className="space-y-2">
+            <Label>Select File</Label>
+            <Input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.json"
+              onChange={handleFileSelect}
+            />
+            {selectedFile && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {selectedFile.name}
+              </p>
+            )}
+          </div>
+          {error && (
+            <div className="text-sm text-red-500">{error}</div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleImport} disabled={isImporting || !selectedFile}>
+            {isImporting ? 'Importing...' : 'Import'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 interface RequirementItemProps {
   requirement: FrameworkRequirement
   allRequirements: FrameworkRequirement[]
@@ -317,6 +484,7 @@ export function FrameworkDetailSheet({
   const { data: framework, isLoading, refetch } = useFramework(frameworkId || '')
   const [isEditing, setIsEditing] = useState(false)
   const [isReqFormOpen, setIsReqFormOpen] = useState(false)
+  const [isImportOpen, setIsImportOpen] = useState(false)
   const [editingRequirement, setEditingRequirement] = useState<FrameworkRequirement | undefined>()
   const [parentIdForNew, setParentIdForNew] = useState<string | undefined>()
   const [formData, setFormData] = useState<UpdateFramework>({})
@@ -557,10 +725,16 @@ export function FrameworkDetailSheet({
                     <Badge variant="secondary">{framework.requirement_count}</Badge>
                   </h3>
                   {!framework.is_system && (
-                    <Button size="sm" onClick={handleAddRequirement}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setIsImportOpen(true)}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Import
+                      </Button>
+                      <Button size="sm" onClick={handleAddRequirement}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -618,6 +792,15 @@ export function FrameworkDetailSheet({
           frameworkId={frameworkId}
           parentId={parentIdForNew}
           editRequirement={editingRequirement}
+          onSuccess={handleReqFormSuccess}
+        />
+      )}
+
+      {frameworkId && (
+        <ImportDialog
+          open={isImportOpen}
+          onOpenChange={setIsImportOpen}
+          frameworkId={frameworkId}
           onSuccess={handleReqFormSuccess}
         />
       )}

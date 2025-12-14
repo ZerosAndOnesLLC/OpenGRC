@@ -131,3 +131,15 @@ pub async fn get_policy_acknowledgments(
     let acknowledgments = services.policy.get_acknowledgments(org_id, id).await?;
     Ok(Json(acknowledgments))
 }
+
+/// GET /api/v1/policies/pending
+/// Get all policies pending acknowledgment for the current user
+pub async fn get_pending_policies(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+) -> AppResult<Json<Vec<PolicyWithStats>>> {
+    let org_id = get_org_id(&user)?;
+    let user_id = get_user_id(&user)?;
+    let policies = services.policy.get_pending_policies(org_id, user_id).await?;
+    Ok(Json(policies))
+}

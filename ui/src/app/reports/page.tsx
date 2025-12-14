@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { PageHeader } from "@/components/page-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileDown, Loader2 } from "lucide-react"
+import { FileDown, FileText, Loader2 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 
 interface ReportType {
@@ -16,6 +16,8 @@ interface ReportType {
 interface ReportTypesResponse {
   reports: ReportType[]
 }
+
+type DownloadFormat = "csv" | "pdf"
 
 export default function ReportsPage() {
   const [reportTypes, setReportTypes] = useState<ReportType[]>([])
@@ -47,14 +49,15 @@ export default function ReportsPage() {
     }
   }
 
-  const downloadReport = async (reportId: string, reportName: string) => {
+  const downloadReport = async (reportId: string, reportName: string, format: DownloadFormat) => {
+    const downloadKey = `${reportId}-${format}`
     try {
-      setDownloading(reportId)
+      setDownloading(downloadKey)
 
       const token = localStorage.getItem("auth_token")
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
-      const response = await fetch(`${baseUrl}/api/v1/reports/${reportId}/csv`, {
+      const response = await fetch(`${baseUrl}/api/v1/reports/${reportId}/${format}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -72,7 +75,7 @@ export default function ReportsPage() {
 
       // Get filename from Content-Disposition header or generate one
       const contentDisposition = response.headers.get("Content-Disposition")
-      let filename = `opengrc-${reportId}-${new Date().toISOString().split("T")[0]}.csv`
+      let filename = `opengrc-${reportId}-${new Date().toISOString().split("T")[0]}.${format}`
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="(.+)"/)
         if (match) {
@@ -86,7 +89,7 @@ export default function ReportsPage() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      console.error(`Failed to download ${reportName} report:`, error)
+      console.error(`Failed to download ${reportName} ${format.toUpperCase()} report:`, error)
       alert(`Failed to download report: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setDownloading(null)
@@ -112,25 +115,45 @@ export default function ReportsPage() {
                 <CardTitle className="text-lg">{report.name}</CardTitle>
                 <CardDescription>{report.description}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => downloadReport(report.id, report.name)}
-                  disabled={downloading !== null}
-                >
-                  {downloading === report.id ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <FileDown className="mr-2 h-4 w-4" />
-                      Export CSV
-                    </>
-                  )}
-                </Button>
+              <CardContent className="space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => downloadReport(report.id, report.name, "csv")}
+                    disabled={downloading !== null}
+                  >
+                    {downloading === `${report.id}-csv` ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="mr-2 h-4 w-4" />
+                        CSV
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => downloadReport(report.id, report.name, "pdf")}
+                    disabled={downloading !== null}
+                  >
+                    {downloading === `${report.id}-pdf` ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        PDF
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

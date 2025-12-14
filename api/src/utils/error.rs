@@ -107,4 +107,16 @@ impl From<meilisearch_sdk::errors::Error> for AppError {
     }
 }
 
+impl From<printpdf::Error> for AppError {
+    fn from(err: printpdf::Error) -> Self {
+        AppError::InternalServerError(format!("PDF generation error: {}", err))
+    }
+}
+
+impl<W: std::fmt::Debug> From<std::io::IntoInnerError<W>> for AppError {
+    fn from(err: std::io::IntoInnerError<W>) -> Self {
+        AppError::InternalServerError(format!("IO error: {}", err.error()))
+    }
+}
+
 pub type AppResult<T> = Result<T, AppError>;
