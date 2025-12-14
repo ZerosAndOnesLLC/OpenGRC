@@ -1282,20 +1282,26 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
   - Security Center
   - Resource inventory
 
-#### 2.3 Identity Provider Integrations
-- [ ] **Okta**
-  - User inventory
-  - MFA status
-  - Application assignments
-  - System logs
-- [ ] **Google Workspace**
-  - User directory
-  - Security settings
-  - Login audit
-- [ ] **Azure AD / Entra ID**
-  - Users and groups
-  - Conditional access
-  - Sign-in logs
+#### 2.3 Identity Provider Integrations (Complete - v1.13.0)
+- [x] **Okta**
+  - [x] User inventory with status tracking
+  - [x] MFA status and factor types
+  - [x] Application assignments with user counts
+  - [x] System logs with security event detection
+  - [x] Groups and membership
+  - [x] Stale user detection
+- [x] **Google Workspace**
+  - [x] User directory with 2-Step Verification status
+  - [x] Groups with member counts
+  - [x] Login audit logs
+  - [x] Admin audit logs
+  - [x] Stale user detection
+- [x] **Azure AD / Entra ID**
+  - [x] Users and groups with membership
+  - [x] Conditional access policies
+  - [x] Sign-in logs with risk detection
+  - [x] Audit logs
+  - [x] Guest user tracking
 
 #### 2.4 DevOps Integrations
 - [x] **GitHub** (v1.8.0)
@@ -2097,7 +2103,7 @@ All Phase 1 items complete!
   - [x] AWS sample IAM policy (in UI setup flow)
 
 ### Remaining Phase 2 Work
-- [ ] Identity provider integrations (Okta, Google Workspace, Azure AD)
+- [x] Identity provider integrations (Okta, Google Workspace, Azure AD) - Complete v1.13.0
 - [ ] Sync scheduling worker (deferred)
 
 **Completed in v1.8.0:**
@@ -2116,7 +2122,7 @@ All Phase 1 items complete!
 - Azure integration
 - GitLab integration
 
-**Phase 2 ~90% Complete** - Integration framework, AWS, GitHub, Jira integrations, and storage abstraction complete.
+**Phase 2 ~98% Complete** - Integration framework, AWS, GitHub, Jira, Okta, Google Workspace, Azure AD integrations, storage abstraction, automated evidence collection, and automated control testing complete. Only sync scheduling worker remaining (deferred).
 
 ## Policy Templates
 
