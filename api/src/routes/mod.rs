@@ -4,6 +4,7 @@ pub mod auth;
 pub mod aws;
 pub mod controls;
 pub mod evidence;
+pub mod evidence_automation;
 pub mod frameworks;
 pub mod health;
 pub mod integrations;
@@ -190,6 +191,23 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/search", get(search::search))
         .route("/api/v1/search/status", get(search::search_status))
         .route("/api/v1/search/reindex", post(search::reindex_all))
+        // Evidence Automation routes
+        .route("/api/v1/evidence/freshness/summary", get(evidence_automation::get_freshness_summary))
+        .route("/api/v1/evidence/freshness/stale", get(evidence_automation::get_stale_by_source))
+        .route("/api/v1/evidence/freshness/update", post(evidence_automation::update_freshness_scores))
+        .route("/api/v1/evidence/freshness/slas", get(evidence_automation::list_freshness_slas))
+        .route("/api/v1/evidence/:id/freshness", get(evidence_automation::get_evidence_freshness))
+        .route("/api/v1/evidence/collection-tasks", get(evidence_automation::list_collection_tasks))
+        .route("/api/v1/evidence/collection-tasks", post(evidence_automation::create_collection_task))
+        .route("/api/v1/evidence/collection-tasks/:id", put(evidence_automation::update_collection_task))
+        .route("/api/v1/evidence/collection-tasks/:id", delete(evidence_automation::delete_collection_task))
+        .route("/api/v1/evidence/changes", get(evidence_automation::list_evidence_changes))
+        .route("/api/v1/evidence/changes/count", get(evidence_automation::get_pending_change_count))
+        .route("/api/v1/evidence/changes/:id/acknowledge", put(evidence_automation::acknowledge_change))
+        .route("/api/v1/evidence/mapping-rules", get(evidence_automation::list_mapping_rules))
+        .route("/api/v1/evidence/mapping-rules", post(evidence_automation::create_mapping_rule))
+        .route("/api/v1/evidence/mapping-rules/:id", put(evidence_automation::update_mapping_rule))
+        .route("/api/v1/evidence/mapping-rules/:id", delete(evidence_automation::delete_mapping_rule))
         // AWS Integration specific routes
         .route("/api/v1/integrations/:id/aws/overview", get(aws::get_aws_overview))
         .route("/api/v1/integrations/:id/aws/iam/users", get(aws::list_iam_users))

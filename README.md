@@ -40,7 +40,7 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] Control-to-requirement mapping UI
 - [x] Report generation (CSV + PDF export with branding)
 
-**Phase 2: Automation & Integrations - 90% Complete**
+**Phase 2: Automation & Integrations - 95% Complete**
 
 - [x] Integration framework with pluggable architecture
 - [x] Credential vault (AES-256-GCM encryption)
@@ -50,13 +50,17 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] AWS sample IAM policy for setup
 - [x] GitHub integration (repos, security alerts, branch protection, members)
 - [x] Jira integration (projects, issues, users, permissions)
+- [x] Automated evidence collection with cron-based scheduling
+- [x] Evidence freshness scoring with SLA tracking
+- [x] Change detection and alerting
+- [x] Auto-linking evidence to controls via mapping rules
 - [ ] Identity provider integrations (Okta, Google Workspace, Azure AD)
 
 ## Features
 
 - **Multi-Framework Support** - SOC 2, ISO 27001, HIPAA, PCI DSS, GDPR, NIST CSF
 - **Control Management** - Define, test, and monitor security controls
-- **Evidence Collection** - Manual uploads + automated collection from 50+ integrations
+- **Evidence Collection** - Manual uploads + scheduled automated collection with freshness scoring
 - **Policy Management** - Version-controlled policies with employee acknowledgment portal
 - **Policy Reminders** - Email (AWS SES) and in-app notification reminders
 - **Policy Templates** - 25 pre-written policy templates covering SOC 2, ISO 27001, HIPAA, and more

@@ -1,6 +1,6 @@
 [package]
 name = "opengrc-api"
-version = "1.10.0"
+version = "1.11.0"
 edition = "2021"
 
 [dependencies]
@@ -67,5 +67,9 @@ printpdf = "0.7"
 
 # Email (AWS SES)
 aws-sdk-sesv2 = "1.58"
+
+# Evidence Automation
+regex = "1.11"
+cron-parser = "0.8"
 
 [dev-dependencies]

@@ -1329,10 +1329,10 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
   - On-call schedules
 
 #### 2.6 Automated Evidence Collection
-- [ ] Scheduled evidence snapshots
-- [ ] Evidence auto-linking to controls
-- [ ] Change detection & alerting
-- [ ] Evidence freshness scoring
+- [x] Scheduled evidence snapshots (cron-based collection tasks)
+- [x] Evidence auto-linking to controls (mapping rules with regex patterns)
+- [x] Change detection & alerting (triggers track changes, acknowledgment workflow)
+- [x] Evidence freshness scoring (SLA-based scoring, staleness tracking)
 
 #### 2.7 Automated Control Testing
 - [ ] Define automated test rules

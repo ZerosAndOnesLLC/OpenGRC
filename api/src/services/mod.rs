@@ -3,6 +3,7 @@ pub mod audit;
 pub mod aws;
 pub mod control;
 pub mod evidence;
+pub mod evidence_automation;
 pub mod framework;
 pub mod integration;
 pub mod notification;
@@ -25,6 +26,7 @@ pub use audit::AuditService;
 pub use aws::AwsService;
 pub use control::ControlService;
 pub use evidence::EvidenceService;
+pub use evidence_automation::EvidenceAutomationService;
 pub use framework::FrameworkService;
 pub use integration::IntegrationService;
 pub use notification::NotificationService;
@@ -53,6 +55,7 @@ pub struct AppServices {
     pub notification: NotificationService,
     pub integration: IntegrationService,
     pub aws: AwsService,
+    pub evidence_automation: EvidenceAutomationService,
 }
 
 impl AppServices {
@@ -94,6 +97,9 @@ impl AppServices {
         // AWS-specific service for querying synced data
         let aws = AwsService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws }
+        // Evidence automation service
+        let evidence_automation = EvidenceAutomationService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation }
     }
 }

@@ -52,6 +52,13 @@ pub use evidence::{
     Evidence, EvidenceWithLinks, LinkedControl, EvidenceControlLink,
     CreateEvidence, UpdateEvidence, ListEvidenceQuery, EvidenceStats,
     TypeCount, SourceCount,
+    // Evidence automation types
+    EvidenceWithFreshness, EvidenceCollectionTask, CreateEvidenceCollectionTask,
+    UpdateEvidenceCollectionTask, EvidenceCollectionRun, EvidenceChange,
+    EvidenceChangeWithDetails, EvidenceControlMappingRule, CreateMappingRule,
+    UpdateMappingRule, EvidenceFreshnessSla, CreateFreshnessSla,
+    EvidenceFreshnessSummary, StaleEvidenceBySource, EvidenceCollectionTaskWithStats,
+    ListCollectionTasksQuery, ListEvidenceChangesQuery,
 };
 
 pub use policy::{
