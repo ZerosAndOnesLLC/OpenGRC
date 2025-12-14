@@ -2,6 +2,7 @@ pub mod asset;
 pub mod audit;
 pub mod aws;
 pub mod control;
+pub mod control_test_automation;
 pub mod evidence;
 pub mod evidence_automation;
 pub mod framework;
@@ -25,6 +26,7 @@ pub use asset::AssetService;
 pub use audit::AuditService;
 pub use aws::AwsService;
 pub use control::ControlService;
+pub use control_test_automation::ControlTestAutomationService;
 pub use evidence::EvidenceService;
 pub use evidence_automation::EvidenceAutomationService;
 pub use framework::FrameworkService;
@@ -56,6 +58,7 @@ pub struct AppServices {
     pub integration: IntegrationService,
     pub aws: AwsService,
     pub evidence_automation: EvidenceAutomationService,
+    pub control_test_automation: ControlTestAutomationService,
 }
 
 impl AppServices {
@@ -100,6 +103,9 @@ impl AppServices {
         // Evidence automation service
         let evidence_automation = EvidenceAutomationService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation }
+        // Control test automation service
+        let control_test_automation = ControlTestAutomationService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation }
     }
 }

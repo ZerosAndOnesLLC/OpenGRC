@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::time::interval;
 use uuid::Uuid;
 
@@ -42,6 +43,8 @@ pub struct DueTest {
     pub automation_config: Option<JsonValue>,
     pub frequency: Option<String>,
     pub next_due_at: Option<DateTime<Utc>>,
+    pub timeout_seconds: Option<i32>,
+    pub retry_count: Option<i32>,
 }
 
 /// Result of an automated test execution
@@ -50,6 +53,21 @@ pub struct TestExecutionResult {
     pub status: String,
     pub notes: String,
     pub raw_response: Option<String>,
+    pub error_message: Option<String>,
+    pub execution_time_ms: i32,
+}
+
+/// Alert configuration for a test
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AlertConfig {
+    pub alert_on_failure: bool,
+    pub consecutive_failures_threshold: i32,
+    pub alert_on_recovery: bool,
+    pub alert_recipients: Option<Vec<Uuid>>,
+    pub alert_email_enabled: bool,
+    pub alert_in_app_enabled: bool,
+    pub is_muted: bool,
+    pub muted_until: Option<DateTime<Utc>>,
 }
 
 /// Worker that runs automated control tests
@@ -64,7 +82,7 @@ impl ControlTestingWorker {
         Self {
             db,
             http_client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                .timeout(std::time::Duration::from_secs(60))
                 .build()
                 .expect("Failed to create HTTP client"),
             check_interval_secs: 60, // Check every minute
@@ -102,27 +120,45 @@ impl ControlTestingWorker {
                 continue;
             }
 
-            match self.execute_test(&test).await {
-                Ok(result) => {
-                    if let Err(e) = self.record_result(&test, &result).await {
-                        tracing::error!("Failed to record result for test {}: {}", test.id, e);
-                    } else {
-                        tracing::info!(
-                            "Test {} completed with status: {}",
-                            test.name,
-                            result.status
-                        );
-                    }
-                }
+            // Create a test run record
+            let run_id = self.create_test_run(&test).await?;
+            let start_time = Instant::now();
+
+            let result = match self.execute_test(&test).await {
+                Ok(r) => r,
                 Err(e) => {
                     tracing::error!("Failed to execute test {}: {}", test.name, e);
-                    // Record failure
-                    let failure_result = TestExecutionResult {
-                        status: "failed".to_string(),
-                        notes: format!("Automation error: {}", e),
+                    TestExecutionResult {
+                        status: "error".to_string(),
+                        notes: "Test execution failed".to_string(),
                         raw_response: None,
-                    };
-                    let _ = self.record_result(&test, &failure_result).await;
+                        error_message: Some(e.to_string()),
+                        execution_time_ms: start_time.elapsed().as_millis() as i32,
+                    }
+                }
+            };
+
+            // Record the result
+            if let Err(e) = self.record_result(&test, run_id, &result).await {
+                tracing::error!("Failed to record result for test {}: {}", test.id, e);
+            } else {
+                tracing::info!(
+                    "Test {} completed with status: {} ({}ms)",
+                    test.name,
+                    result.status,
+                    result.execution_time_ms
+                );
+
+                // Check if we need to send alerts
+                if result.status == "failed" || result.status == "error" {
+                    if let Err(e) = self.check_and_send_alerts(&test, run_id, &result).await {
+                        tracing::error!("Failed to send alert for test {}: {}", test.id, e);
+                    }
+                } else if result.status == "passed" {
+                    // Check for recovery alerts
+                    if let Err(e) = self.check_recovery_alert(&test, run_id).await {
+                        tracing::error!("Failed to check recovery alert for test {}: {}", test.id, e);
+                    }
                 }
             }
         }
@@ -142,11 +178,14 @@ impl ControlTestingWorker {
                 ct.test_type,
                 ct.automation_config,
                 ct.frequency,
-                ct.next_due_at
+                ct.next_due_at,
+                ct.timeout_seconds,
+                ct.retry_count
             FROM control_tests ct
             JOIN controls c ON ct.control_id = c.id
             WHERE ct.test_type = 'automated'
               AND ct.automation_config IS NOT NULL
+              AND (ct.is_enabled IS NULL OR ct.is_enabled = true)
               AND (ct.next_due_at IS NULL OR ct.next_due_at <= NOW())
             ORDER BY ct.next_due_at ASC NULLS FIRST
             LIMIT 100
@@ -156,29 +195,65 @@ impl ControlTestingWorker {
         .await
     }
 
+    /// Create a test run record
+    async fn create_test_run(&self, test: &DueTest) -> Result<Uuid, sqlx::Error> {
+        let (id,): (Uuid,) = sqlx::query_as(
+            r#"
+            INSERT INTO control_test_runs (organization_id, control_test_id, control_id, run_type)
+            VALUES ($1, $2, $3, 'scheduled')
+            RETURNING id
+            "#,
+        )
+        .bind(test.organization_id)
+        .bind(test.id)
+        .bind(test.control_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        Ok(id)
+    }
+
     /// Execute an automated test
     async fn execute_test(
         &self,
         test: &DueTest,
     ) -> Result<TestExecutionResult, Box<dyn std::error::Error + Send + Sync>> {
+        let start_time = Instant::now();
+
         let config: AutomationConfig = match &test.automation_config {
             Some(json) => serde_json::from_value(json.clone())?,
             None => {
-                return Err("No automation config found".into());
+                return Ok(TestExecutionResult {
+                    status: "error".to_string(),
+                    notes: "No automation config found".to_string(),
+                    raw_response: None,
+                    error_message: Some("Missing automation config".to_string()),
+                    execution_time_ms: 0,
+                });
             }
         };
 
-        match config.automation_type.as_str() {
-            "http" => self.execute_http_test(&config).await,
-            "integration" => self.execute_integration_test(&config).await,
-            _ => Err(format!("Unknown automation type: {}", config.automation_type).into()),
-        }
+        let mut result = match config.automation_type.as_str() {
+            "http" => self.execute_http_test(&config, test.timeout_seconds).await?,
+            "integration" => self.execute_integration_test(&config).await?,
+            _ => TestExecutionResult {
+                status: "error".to_string(),
+                notes: format!("Unknown automation type: {}", config.automation_type),
+                raw_response: None,
+                error_message: Some(format!("Unknown automation type: {}", config.automation_type)),
+                execution_time_ms: 0,
+            },
+        };
+
+        result.execution_time_ms = start_time.elapsed().as_millis() as i32;
+        Ok(result)
     }
 
     /// Execute an HTTP-based test
     async fn execute_http_test(
         &self,
         config: &AutomationConfig,
+        timeout_seconds: Option<i32>,
     ) -> Result<TestExecutionResult, Box<dyn std::error::Error + Send + Sync>> {
         let endpoint = config
             .endpoint
@@ -187,12 +262,22 @@ impl ControlTestingWorker {
 
         let method = config.method.as_deref().unwrap_or("GET");
 
+        // Build client with custom timeout if specified
+        let client = if let Some(timeout) = timeout_seconds {
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(timeout as u64))
+                .build()?
+        } else {
+            self.http_client.clone()
+        };
+
         let mut request = match method.to_uppercase().as_str() {
-            "GET" => self.http_client.get(endpoint),
-            "POST" => self.http_client.post(endpoint),
-            "PUT" => self.http_client.put(endpoint),
-            "DELETE" => self.http_client.delete(endpoint),
-            "PATCH" => self.http_client.patch(endpoint),
+            "GET" => client.get(endpoint),
+            "POST" => client.post(endpoint),
+            "PUT" => client.put(endpoint),
+            "DELETE" => client.delete(endpoint),
+            "PATCH" => client.patch(endpoint),
+            "HEAD" => client.head(endpoint),
             _ => return Err(format!("Unsupported HTTP method: {}", method).into()),
         };
 
@@ -218,7 +303,7 @@ impl ControlTestingWorker {
         let expected_codes = config
             .expected_status_codes
             .as_ref()
-            .map(|c| c.clone())
+            .cloned()
             .unwrap_or_else(|| vec![200, 201, 204]);
 
         let status_ok = expected_codes.contains(&status_code);
@@ -235,10 +320,11 @@ impl ControlTestingWorker {
             true
         };
 
-        let (status, notes) = if status_ok && validation_ok {
+        let (status, notes, error_message) = if status_ok && validation_ok {
             (
                 "passed".to_string(),
                 format!("HTTP {} returned status {}", method, status_code),
+                None,
             )
         } else if !status_ok {
             (
@@ -247,18 +333,22 @@ impl ControlTestingWorker {
                     "Unexpected status code: {}. Expected one of: {:?}",
                     status_code, expected_codes
                 ),
+                Some(format!("HTTP {} returned unexpected status {}", method, status_code)),
             )
         } else {
             (
                 "failed".to_string(),
                 format!("Response validation failed for path: {:?}", config.validation_path),
+                Some("Response validation failed".to_string()),
             )
         };
 
         Ok(TestExecutionResult {
             status,
             notes,
-            raw_response: Some(body.chars().take(1000).collect()),
+            raw_response: Some(body.chars().take(5000).collect()),
+            error_message,
+            execution_time_ms: 0,
         })
     }
 
@@ -283,9 +373,11 @@ impl ControlTestingWorker {
             Some((t, c)) => (t, c),
             None => {
                 return Ok(TestExecutionResult {
-                    status: "failed".to_string(),
+                    status: "error".to_string(),
                     notes: format!("Integration {} not found", integration_id),
                     raw_response: None,
+                    error_message: Some(format!("Integration {} not found", integration_id)),
+                    execution_time_ms: 0,
                 });
             }
         };
@@ -301,6 +393,8 @@ impl ControlTestingWorker {
                     integration_type
                 ),
                 raw_response: None,
+                error_message: None,
+                execution_time_ms: 0,
             }),
         }
     }
@@ -311,11 +405,13 @@ impl ControlTestingWorker {
         _integration_config: &JsonValue,
         _test_config: &AutomationConfig,
     ) -> Result<TestExecutionResult, Box<dyn std::error::Error + Send + Sync>> {
-        // This would check AWS resources, security groups, IAM policies, etc.
+        // TODO: Implement AWS-specific compliance checks based on test_config
         Ok(TestExecutionResult {
             status: "skipped".to_string(),
             notes: "AWS integration testing not yet implemented".to_string(),
             raw_response: None,
+            error_message: None,
+            execution_time_ms: 0,
         })
     }
 
@@ -325,11 +421,13 @@ impl ControlTestingWorker {
         _integration_config: &JsonValue,
         _test_config: &AutomationConfig,
     ) -> Result<TestExecutionResult, Box<dyn std::error::Error + Send + Sync>> {
-        // This would check repo settings, branch protections, etc.
+        // TODO: Implement GitHub-specific compliance checks based on test_config
         Ok(TestExecutionResult {
             status: "skipped".to_string(),
             notes: "GitHub integration testing not yet implemented".to_string(),
             raw_response: None,
+            error_message: None,
+            execution_time_ms: 0,
         })
     }
 
@@ -353,11 +451,34 @@ impl ControlTestingWorker {
     async fn record_result(
         &self,
         test: &DueTest,
+        run_id: Uuid,
         result: &TestExecutionResult,
     ) -> Result<(), sqlx::Error> {
         let mut tx = self.db.begin().await?;
 
-        // Insert test result
+        // Update the test run record
+        sqlx::query(
+            r#"
+            UPDATE control_test_runs
+            SET completed_at = NOW(),
+                status = $2,
+                notes = $3,
+                raw_output = $4,
+                error_message = $5,
+                execution_time_ms = $6
+            WHERE id = $1
+            "#,
+        )
+        .bind(run_id)
+        .bind(&result.status)
+        .bind(&result.notes)
+        .bind(&result.raw_response)
+        .bind(&result.error_message)
+        .bind(result.execution_time_ms)
+        .execute(&mut *tx)
+        .await?;
+
+        // Also insert into legacy control_test_results for backwards compatibility
         sqlx::query(
             r#"
             INSERT INTO control_test_results (control_test_id, performed_by, status, notes)
@@ -370,22 +491,297 @@ impl ControlTestingWorker {
         .execute(&mut *tx)
         .await?;
 
-        // Update next_due_at based on frequency
-        let next_due = self.calculate_next_due(test.frequency.as_deref());
+        // Update control_tests stats
+        let pass_increment = if result.status == "passed" { 1 } else { 0 };
+        let fail_increment = if result.status != "passed" && result.status != "skipped" { 1 } else { 0 };
 
         sqlx::query(
             r#"
             UPDATE control_tests
-            SET next_due_at = $2
+            SET last_run_at = NOW(),
+                last_run_status = $2,
+                run_count = COALESCE(run_count, 0) + 1,
+                pass_count = COALESCE(pass_count, 0) + $3,
+                fail_count = COALESCE(fail_count, 0) + $4,
+                next_due_at = $5
             WHERE id = $1
             "#,
         )
         .bind(test.id)
-        .bind(next_due)
+        .bind(&result.status)
+        .bind(pass_increment)
+        .bind(fail_increment)
+        .bind(self.calculate_next_due(test.frequency.as_deref()))
         .execute(&mut *tx)
         .await?;
 
+        // Update monitoring status via DB function
+        sqlx::query("SELECT update_control_monitoring_status($1, $2, $3)")
+            .bind(test.organization_id)
+            .bind(test.control_id)
+            .bind(&result.status)
+            .execute(&mut *tx)
+            .await?;
+
+        // Find matching remediation if failed
+        if result.status == "failed" || result.status == "error" {
+            let failure_msg = result.error_message.as_deref().unwrap_or(&result.notes);
+            let remediation_id: Option<(Uuid,)> = sqlx::query_as(
+                "SELECT find_matching_remediation($1, $2)"
+            )
+            .bind(test.id)
+            .bind(failure_msg)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+            if let Some((rem_id,)) = remediation_id {
+                sqlx::query("UPDATE control_test_runs SET remediation_suggested_id = $2 WHERE id = $1")
+                    .bind(run_id)
+                    .bind(rem_id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+
         tx.commit().await?;
+
+        Ok(())
+    }
+
+    /// Check if we need to send alerts and send them
+    async fn check_and_send_alerts(
+        &self,
+        test: &DueTest,
+        run_id: Uuid,
+        result: &TestExecutionResult,
+    ) -> Result<(), sqlx::Error> {
+        // Get alert config
+        let alert_config: Option<AlertConfig> = sqlx::query_as(
+            r#"
+            SELECT alert_on_failure, consecutive_failures_threshold, alert_on_recovery,
+                   alert_recipients, alert_email_enabled, alert_in_app_enabled,
+                   is_muted, muted_until
+            FROM control_test_alert_configs
+            WHERE organization_id = $1 AND control_test_id = $2
+            "#,
+        )
+        .bind(test.organization_id)
+        .bind(test.id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        let config = match alert_config {
+            Some(c) => c,
+            None => return Ok(()), // No alert config, skip
+        };
+
+        // Check if muted
+        if config.is_muted {
+            if let Some(until) = config.muted_until {
+                if until > Utc::now() {
+                    return Ok(()); // Still muted
+                }
+            } else {
+                return Ok(()); // Indefinitely muted
+            }
+        }
+
+        if !config.alert_on_failure {
+            return Ok(());
+        }
+
+        // Check consecutive failures threshold
+        let (consecutive_failures,): (i32,) = sqlx::query_as(
+            "SELECT consecutive_failures FROM control_monitoring_status WHERE organization_id = $1 AND control_id = $2"
+        )
+        .bind(test.organization_id)
+        .bind(test.control_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        if consecutive_failures < config.consecutive_failures_threshold {
+            return Ok(()); // Haven't hit threshold yet
+        }
+
+        // Get recipients
+        let recipients = config.alert_recipients.unwrap_or_default();
+        if recipients.is_empty() {
+            return Ok(()); // No one to alert
+        }
+
+        // Determine severity based on consecutive failures
+        let severity = if consecutive_failures >= 5 {
+            "critical"
+        } else if consecutive_failures >= 3 {
+            "high"
+        } else {
+            "medium"
+        };
+
+        // Create alert
+        let title = format!("Control test failed: {}", test.name);
+        let message = format!(
+            "Control test '{}' has failed {} consecutive time(s).\n\nError: {}",
+            test.name,
+            consecutive_failures,
+            result.error_message.as_deref().unwrap_or(&result.notes)
+        );
+
+        sqlx::query(
+            r#"
+            INSERT INTO control_test_alerts (
+                organization_id, control_test_id, test_run_id, alert_type, severity,
+                title, message, recipients, email_sent, in_app_sent
+            )
+            VALUES ($1, $2, $3, 'failure', $4, $5, $6, $7, false, false)
+            "#,
+        )
+        .bind(test.organization_id)
+        .bind(test.id)
+        .bind(run_id)
+        .bind(severity)
+        .bind(&title)
+        .bind(&message)
+        .bind(&recipients)
+        .execute(&self.db)
+        .await?;
+
+        // Mark alert sent on run
+        sqlx::query("UPDATE control_test_runs SET alert_sent = true, alert_sent_at = NOW() WHERE id = $1")
+            .bind(run_id)
+            .execute(&self.db)
+            .await?;
+
+        // Create in-app notifications for all recipients
+        if config.alert_in_app_enabled {
+            for recipient_id in &recipients {
+                sqlx::query(
+                    r#"
+                    INSERT INTO notifications (organization_id, user_id, notification_type, title, message, data)
+                    VALUES ($1, $2, 'control_test_alert', $3, $4, $5)
+                    "#,
+                )
+                .bind(test.organization_id)
+                .bind(recipient_id)
+                .bind(&title)
+                .bind(&message)
+                .bind(serde_json::json!({
+                    "control_test_id": test.id,
+                    "run_id": run_id,
+                    "severity": severity,
+                    "consecutive_failures": consecutive_failures
+                }))
+                .execute(&self.db)
+                .await?;
+            }
+        }
+
+        tracing::info!(
+            "Sent {} alert for test {} to {} recipients",
+            severity,
+            test.name,
+            recipients.len()
+        );
+
+        Ok(())
+    }
+
+    /// Check if we should send a recovery alert
+    async fn check_recovery_alert(&self, test: &DueTest, run_id: Uuid) -> Result<(), sqlx::Error> {
+        // Get alert config
+        let alert_config: Option<AlertConfig> = sqlx::query_as(
+            r#"
+            SELECT alert_on_failure, consecutive_failures_threshold, alert_on_recovery,
+                   alert_recipients, alert_email_enabled, alert_in_app_enabled,
+                   is_muted, muted_until
+            FROM control_test_alert_configs
+            WHERE organization_id = $1 AND control_test_id = $2
+            "#,
+        )
+        .bind(test.organization_id)
+        .bind(test.id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        let config = match alert_config {
+            Some(c) if c.alert_on_recovery => c,
+            _ => return Ok(()), // No config or recovery alerts disabled
+        };
+
+        // Check if there was a recent unresolved alert
+        let recent_alert: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            SELECT id FROM control_test_alerts
+            WHERE organization_id = $1
+              AND control_test_id = $2
+              AND alert_type = 'failure'
+              AND resolved_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(test.organization_id)
+        .bind(test.id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        if recent_alert.is_none() {
+            return Ok(()); // No recent unresolved alert
+        }
+
+        let recipients = config.alert_recipients.unwrap_or_default();
+        if recipients.is_empty() {
+            return Ok(());
+        }
+
+        // Create recovery alert
+        let title = format!("Control test recovered: {}", test.name);
+        let message = format!(
+            "Control test '{}' has recovered and is now passing.",
+            test.name
+        );
+
+        sqlx::query(
+            r#"
+            INSERT INTO control_test_alerts (
+                organization_id, control_test_id, test_run_id, alert_type, severity,
+                title, message, recipients
+            )
+            VALUES ($1, $2, $3, 'recovery', 'low', $4, $5, $6)
+            "#,
+        )
+        .bind(test.organization_id)
+        .bind(test.id)
+        .bind(run_id)
+        .bind(&title)
+        .bind(&message)
+        .bind(&recipients)
+        .execute(&self.db)
+        .await?;
+
+        // Create in-app notifications
+        if config.alert_in_app_enabled {
+            for recipient_id in &recipients {
+                sqlx::query(
+                    r#"
+                    INSERT INTO notifications (organization_id, user_id, notification_type, title, message, data)
+                    VALUES ($1, $2, 'control_test_recovery', $3, $4, $5)
+                    "#,
+                )
+                .bind(test.organization_id)
+                .bind(recipient_id)
+                .bind(&title)
+                .bind(&message)
+                .bind(serde_json::json!({
+                    "control_test_id": test.id,
+                    "run_id": run_id
+                }))
+                .execute(&self.db)
+                .await?;
+            }
+        }
+
+        tracing::info!("Sent recovery alert for test {}", test.name);
 
         Ok(())
     }
@@ -395,12 +791,14 @@ impl ControlTestingWorker {
         let now = Utc::now();
 
         match frequency {
+            Some("continuous") => now + Duration::minutes(5),
+            Some("hourly") => now + Duration::hours(1),
             Some("daily") => now + Duration::days(1),
             Some("weekly") => now + Duration::weeks(1),
             Some("monthly") => now + Duration::days(30),
             Some("quarterly") => now + Duration::days(90),
             Some("annually") | Some("yearly") => now + Duration::days(365),
-            _ => now + Duration::days(7), // Default to weekly
+            _ => now + Duration::days(1), // Default to daily
         }
     }
 }

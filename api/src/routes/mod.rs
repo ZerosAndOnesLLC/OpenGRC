@@ -3,6 +3,7 @@ pub mod audits;
 pub mod auth;
 pub mod aws;
 pub mod controls;
+pub mod control_test_automation;
 pub mod evidence;
 pub mod evidence_automation;
 pub mod frameworks;
@@ -208,6 +209,27 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/evidence/mapping-rules", post(evidence_automation::create_mapping_rule))
         .route("/api/v1/evidence/mapping-rules/:id", put(evidence_automation::update_mapping_rule))
         .route("/api/v1/evidence/mapping-rules/:id", delete(evidence_automation::delete_mapping_rule))
+        // Control Test Automation routes
+        .route("/api/v1/control-testing/templates", get(control_test_automation::list_templates))
+        .route("/api/v1/control-testing/templates/categories", get(control_test_automation::get_template_categories))
+        .route("/api/v1/control-testing/templates/:id", get(control_test_automation::get_template))
+        .route("/api/v1/control-testing/tests/:test_id/alert-config", get(control_test_automation::get_alert_config))
+        .route("/api/v1/control-testing/tests/:test_id/alert-config", put(control_test_automation::update_alert_config))
+        .route("/api/v1/control-testing/tests/:test_id/remediations", get(control_test_automation::list_test_remediations))
+        .route("/api/v1/control-testing/tests/:test_id/trigger", post(control_test_automation::trigger_test))
+        .route("/api/v1/control-testing/remediations", get(control_test_automation::list_global_remediations))
+        .route("/api/v1/control-testing/remediations", post(control_test_automation::create_remediation))
+        .route("/api/v1/control-testing/remediations/:id", get(control_test_automation::get_remediation))
+        .route("/api/v1/control-testing/monitoring/summary", get(control_test_automation::get_monitoring_summary))
+        .route("/api/v1/control-testing/monitoring/controls", get(control_test_automation::list_monitored_controls))
+        .route("/api/v1/control-testing/monitoring/controls/:control_id", get(control_test_automation::get_control_monitoring_status))
+        .route("/api/v1/control-testing/monitoring/controls/:control_id/acknowledge", put(control_test_automation::acknowledge_control_alert))
+        .route("/api/v1/control-testing/runs", get(control_test_automation::list_test_runs))
+        .route("/api/v1/control-testing/runs/:run_id", get(control_test_automation::get_test_run))
+        .route("/api/v1/control-testing/alerts", get(control_test_automation::list_alerts))
+        .route("/api/v1/control-testing/alerts/count", get(control_test_automation::get_alert_count))
+        .route("/api/v1/control-testing/alerts/:alert_id/acknowledge", put(control_test_automation::acknowledge_alert))
+        .route("/api/v1/control-testing/alerts/:alert_id/resolve", put(control_test_automation::resolve_alert))
         // AWS Integration specific routes
         .route("/api/v1/integrations/:id/aws/overview", get(aws::get_aws_overview))
         .route("/api/v1/integrations/:id/aws/iam/users", get(aws::list_iam_users))

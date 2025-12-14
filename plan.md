@@ -1335,11 +1335,11 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 - [x] Evidence freshness scoring (SLA-based scoring, staleness tracking)
 
 #### 2.7 Automated Control Testing
-- [ ] Define automated test rules
-- [ ] Continuous control monitoring
-- [ ] Pass/fail with evidence attachment
-- [ ] Alerting on failures
-- [ ] Remediation suggestions
+- [x] Define automated test rules (20 pre-built templates for AWS, GitHub, HTTP)
+- [x] Continuous control monitoring (health scoring, status tracking)
+- [x] Pass/fail with evidence attachment (test runs linked to evidence)
+- [x] Alerting on failures (in-app notifications, email templates, muting)
+- [x] Remediation suggestions (pattern-matching, auto-suggested steps)
 
 ### Phase 3: Advanced Features
 **Goal: Enterprise-grade capabilities**
