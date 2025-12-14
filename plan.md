@@ -23,7 +23,7 @@ Build the most comprehensive open-source GRC (Governance, Risk, and Compliance) 
 - **Cache**: Redis - Session management, job queues, caching
 - **Auth**: TitaniumVault - Dogfooding our own auth
 - **Search**: Meilisearch - Fast full-text search for evidence/policies
-- **Storage**: S3-compatible - Evidence file storage
+- **Storage**: Local filesystem or S3-compatible - Evidence file storage
 - **Queue**: Redis + background workers - Async job processing
 
 ## Architecture
@@ -2107,13 +2107,19 @@ cargo run
 - [x] GitHub integration (repositories, security alerts, branch protection, members)
 - [x] Jira integration (projects, issues, users, permissions)
 
+**Completed in v1.9.0:**
+- [x] Storage abstraction - local filesystem or S3 backend
+- [x] Local storage default for easier development (no cloud credentials needed)
+- [x] S3 storage with presigned URLs for production
+- [x] Support for MinIO/LocalStack via custom endpoints
+
 **Deferred/Out of Scope:**
 - CloudFormation template generator (providing sample policy instead)
 - GCP integration
 - Azure integration
 - GitLab integration
 
-**Phase 2 ~85% Complete** - Integration framework, AWS, GitHub, and Jira integrations complete.
+**Phase 2 ~90% Complete** - Integration framework, AWS, GitHub, Jira integrations, and storage abstraction complete.
 
 ## Policy Templates
 
