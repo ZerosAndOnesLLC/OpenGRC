@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
         search,
         encryption,
         config.server.api_base_url.clone(),
-    ));
+    ).await);
 
     let auth_state = Arc::new(AuthState::new(
         config.titanium_vault.api_url.clone(),

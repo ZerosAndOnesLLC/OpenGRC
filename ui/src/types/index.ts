@@ -978,6 +978,285 @@ export interface RecentFailure {
   consecutive_failures: number
 }
 
+// ==================== AWS Integration ====================
+
+export interface AwsOverview {
+  account_id: string
+  integration_id: string
+  last_sync_at: string | null
+  iam_stats: {
+    total_users: number
+    users_with_mfa: number
+    users_with_access_keys: number
+    total_roles: number
+    total_policies: number
+    admin_policies: number
+  }
+  security_stats: {
+    total_findings: number
+    critical: number
+    high: number
+    medium: number
+    low: number
+    informational: number
+  }
+  config_stats: {
+    total_rules: number
+    compliant: number
+    non_compliant: number
+    not_applicable: number
+  }
+  resource_stats: {
+    s3_buckets: number
+    ec2_instances: number
+    rds_instances: number
+    security_groups: number
+  }
+  cloudtrail_stats: {
+    total_events_24h: number
+    root_events: number
+    sensitive_events: number
+  }
+}
+
+export interface AwsIamUser {
+  id: string
+  user_name: string
+  user_id: string
+  arn: string
+  path: string
+  created_date: string
+  password_last_used: string | null
+  mfa_enabled: boolean
+  mfa_devices: string[]
+  access_keys: AwsAccessKey[]
+  attached_policies: string[]
+  inline_policies: string[]
+  groups: string[]
+  tags: Record<string, string>
+}
+
+export interface AwsAccessKey {
+  access_key_id: string
+  status: string
+  created_date: string
+  last_used_date: string | null
+  last_used_service: string | null
+  last_used_region: string | null
+}
+
+export interface AwsIamRole {
+  id: string
+  role_name: string
+  role_id: string
+  arn: string
+  path: string
+  assume_role_policy: string
+  created_date: string
+  max_session_duration: number
+  attached_policies: string[]
+  inline_policies: string[]
+  last_used_at: string | null
+  last_used_region: string | null
+  tags: Record<string, string>
+}
+
+export interface AwsIamPolicy {
+  id: string
+  policy_name: string
+  policy_id: string
+  arn: string
+  path: string
+  policy_document: string
+  attachment_count: number
+  allows_admin_access: boolean
+  uses_wildcard_resources: boolean
+  risk_score: number
+  is_aws_managed: boolean
+}
+
+export interface AwsSecurityFinding {
+  id: string
+  finding_id: string
+  aws_account_id: string
+  region: string
+  product_name: string
+  generator_id: string
+  types: string[]
+  title: string
+  description: string
+  severity_label: string
+  severity_normalized: number
+  workflow_status: string
+  record_state: string
+  compliance_status: string | null
+  compliance_standards: string[]
+  related_resources: AwsRelatedResource[]
+  remediation: string | null
+  first_observed_at: string
+  last_observed_at: string
+  mapped_control_codes: string[]
+}
+
+export interface AwsRelatedResource {
+  type: string
+  id: string
+  partition: string
+  region: string
+}
+
+export interface AwsConfigRule {
+  id: string
+  config_rule_name: string
+  config_rule_arn: string
+  description: string | null
+  source_identifier: string
+  source_owner: string
+  compliance_type: string
+  compliant_count: number
+  non_compliant_count: number
+  region: string
+  mapped_control_codes: string[]
+}
+
+export interface AwsS3Bucket {
+  id: string
+  bucket_name: string
+  region: string
+  creation_date: string
+  versioning_enabled: boolean
+  encryption_enabled: boolean
+  encryption_type: string | null
+  public_access_blocked: boolean
+  logging_enabled: boolean
+  tags: Record<string, string>
+}
+
+export interface AwsEc2Instance {
+  id: string
+  instance_id: string
+  instance_type: string
+  region: string
+  availability_zone: string
+  state: string
+  public_ip: string | null
+  private_ip: string | null
+  vpc_id: string | null
+  subnet_id: string | null
+  security_groups: string[]
+  iam_role: string | null
+  monitoring_enabled: boolean
+  launch_time: string
+  tags: Record<string, string>
+}
+
+export interface AwsSecurityGroup {
+  id: string
+  group_id: string
+  group_name: string
+  description: string
+  vpc_id: string
+  region: string
+  inbound_rules: AwsSecurityGroupRule[]
+  outbound_rules: AwsSecurityGroupRule[]
+  tags: Record<string, string>
+}
+
+export interface AwsSecurityGroupRule {
+  protocol: string
+  from_port: number
+  to_port: number
+  source: string
+}
+
+export interface AwsRdsInstance {
+  id: string
+  db_instance_identifier: string
+  db_instance_class: string
+  engine: string
+  engine_version: string
+  region: string
+  availability_zone: string
+  multi_az: boolean
+  publicly_accessible: boolean
+  storage_encrypted: boolean
+  storage_type: string
+  allocated_storage: number
+  vpc_id: string | null
+  db_subnet_group: string | null
+  security_groups: string[]
+  status: string
+  endpoint: string | null
+  port: number | null
+  created_time: string
+  tags: Record<string, string>
+}
+
+export interface AwsCloudTrailEvent {
+  id: string
+  event_id: string
+  event_name: string
+  event_source: string
+  event_time: string
+  event_type: string
+  user_identity: AwsUserIdentity
+  source_ip_address: string | null
+  user_agent: string | null
+  region: string
+  request_parameters: Record<string, unknown> | null
+  response_elements: Record<string, unknown> | null
+  error_code: string | null
+  error_message: string | null
+  is_root_action: boolean
+  is_sensitive_action: boolean
+  risk_level: string
+}
+
+export interface AwsUserIdentity {
+  type: string
+  principal_id: string | null
+  arn: string | null
+  account_id: string | null
+  user_name: string | null
+  access_key_id: string | null
+}
+
+export interface AwsFindingsSummary {
+  total: number
+  by_severity: {
+    critical: number
+    high: number
+    medium: number
+    low: number
+    informational: number
+  }
+  by_status: {
+    new: number
+    notified: number
+    resolved: number
+    suppressed: number
+  }
+  by_product: Array<{ product: string; count: number }>
+  top_types: Array<{ type: string; count: number }>
+}
+
+export interface AwsCloudTrailStats {
+  total_events_24h: number
+  events_by_hour: Array<{ hour: string; count: number }>
+  top_users: Array<{ user: string; count: number }>
+  top_events: Array<{ event: string; count: number }>
+  root_activity_count: number
+  sensitive_actions_count: number
+  error_count: number
+}
+
+export interface AwsPaginatedResponse<T> {
+  data: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
 // ==================== Dashboard ====================
 
 export interface DashboardStats {

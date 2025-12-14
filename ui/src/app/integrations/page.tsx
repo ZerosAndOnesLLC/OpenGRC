@@ -130,6 +130,8 @@ function IntegrationCard({
 }) {
   const { integration: int, sync_count, last_sync_status, records_synced } = integration
 
+  const hasDashboard = int.integration_type === 'aws'
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -162,7 +164,15 @@ function IntegrationCard({
             </div>
           )}
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-2">
+            {hasDashboard && (
+              <Button size="sm" asChild>
+                <Link href={`/integrations/${int.id}/aws/`}>
+                  <Cloud className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={onConfigure}>
               <Settings className="mr-2 h-4 w-4" />
               Configure

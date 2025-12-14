@@ -459,13 +459,818 @@ notifications (
 - [x] Integration health monitoring dashboard
 
 #### 2.2 Cloud Provider Integrations
-- [ ] **AWS**
-  - IAM users, roles, policies
-  - CloudTrail logs
-  - Security Hub findings
-  - Config compliance
-  - S3 bucket policies
-  - EC2/RDS inventory
+
+##### AWS Integration (Detailed Plan)
+
+**Authentication Strategy**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AWS Authentication Options                    │
+├─────────────────────────────────────────────────────────────────┤
+│  Option 1: Cross-Account IAM Role (Recommended)                 │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐    │
+│  │   OpenGRC    │────▶│  STS Assume  │────▶│  Customer    │    │
+│  │   AWS Acct   │     │     Role     │     │   AWS Acct   │    │
+│  └──────────────┘     └──────────────┘     └──────────────┘    │
+│                                                                  │
+│  Option 2: IAM Access Keys (For self-hosted)                    │
+│  ┌──────────────┐     ┌──────────────┐                         │
+│  │   OpenGRC    │────▶│  Customer    │                         │
+│  │   Instance   │     │   AWS Acct   │                         │
+│  └──────────────┘     └──────────────┘                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Configuration Schema**
+```json
+{
+  "auth_method": "assume_role | access_keys",
+  "role_arn": "arn:aws:iam::123456789012:role/OpenGRCReadOnly",
+  "external_id": "optional-external-id-for-security",
+  "access_key_id": "AKIA...",
+  "secret_access_key": "encrypted...",
+  "regions": ["us-east-1", "us-west-2"],
+  "services": {
+    "iam": { "enabled": true },
+    "cloudtrail": { "enabled": true, "trail_name": "main-trail" },
+    "securityhub": { "enabled": true },
+    "config": { "enabled": true },
+    "s3": { "enabled": true, "buckets": [] },
+    "ec2": { "enabled": true },
+    "rds": { "enabled": true }
+  },
+  "sync_options": {
+    "full_sync_schedule": "0 2 * * *",
+    "incremental_hours": 24
+  }
+}
+```
+
+**Required AWS SDK Crates** (all free, Apache 2.0)
+```toml
+aws-sdk-iam = "1.x"
+aws-sdk-cloudtrail = "1.x"
+aws-sdk-securityhub = "1.x"
+aws-sdk-config = "1.x"
+aws-sdk-ec2 = "1.x"
+aws-sdk-rds = "1.x"
+aws-sdk-sts = "1.x"
+aws-sdk-organizations = "1.x"
+```
+
+**Service Implementations**
+
+| Service | Capability | Data Collected | Control Mappings |
+|---------|------------|----------------|------------------|
+| IAM | UserSync, AccessSync | Users, roles, policies, MFA status, access keys | CC6.1, CC6.2, CC6.3 |
+| CloudTrail | AuditLogs | Management events, data events | CC4.1, CC7.2, CC7.3 |
+| Security Hub | SecurityFindings | Findings, compliance standards | CC3.2, CC7.1, CC7.2 |
+| Config | ComplianceStatus | Rule compliance, config snapshots | CC6.1, CC7.1, CC8.1 |
+| S3 | ConfigurationState | Bucket policies, encryption, versioning | CC6.1, CC6.6, CC6.7 |
+| EC2 | AssetInventory | Instances, security groups, VPCs | A1.1, CC6.1, CC6.6 |
+| RDS | AssetInventory | Databases, encryption, backups | CC6.1, CC6.6, CC6.7 |
+
+---
+
+**1. IAM Integration** (`aws/iam.rs`)
+
+*Capabilities*: `UserSync`, `AccessSync`, `ConfigurationState`
+
+*API Calls*:
+```rust
+// Users
+iam.list_users() -> User[]
+iam.get_user(username) -> User
+iam.list_mfa_devices(username) -> MFADevice[]
+iam.list_access_keys(username) -> AccessKeyMetadata[]
+iam.get_access_key_last_used(access_key_id) -> AccessKeyLastUsed
+
+// Roles
+iam.list_roles() -> Role[]
+iam.get_role(role_name) -> Role
+iam.list_role_policies(role_name) -> PolicyName[]
+iam.list_attached_role_policies(role_name) -> AttachedPolicy[]
+
+// Policies
+iam.list_policies(scope: LOCAL) -> Policy[]
+iam.get_policy(policy_arn) -> Policy
+iam.get_policy_version(policy_arn, version) -> PolicyDocument
+
+// Groups
+iam.list_groups() -> Group[]
+iam.get_group(group_name) -> Group (with users)
+iam.list_group_policies(group_name) -> PolicyName[]
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| IAM User Inventory | List of all IAM users with MFA status | CC6.1, CC6.2 |
+| IAM Roles Inventory | Roles and their trust policies | CC6.1, CC6.3 |
+| IAM Policy Analysis | Custom policies with permissions | CC6.1, CC6.3 |
+| Access Key Age Report | Keys older than 90 days | CC6.1, CC6.2 |
+| MFA Compliance Report | Users without MFA enabled | CC6.1, CC6.6 |
+| Unused Credentials Report | Users with no recent activity | CC6.2, CC6.3 |
+| Admin Privileges Report | Users/roles with admin access | CC6.1, CC6.3 |
+
+*Data Model*:
+```rust
+pub struct AwsIamUser {
+    pub user_id: String,
+    pub user_name: String,
+    pub arn: String,
+    pub create_date: DateTime<Utc>,
+    pub password_last_used: Option<DateTime<Utc>>,
+    pub mfa_enabled: bool,
+    pub mfa_devices: Vec<AwsMfaDevice>,
+    pub access_keys: Vec<AwsAccessKey>,
+    pub groups: Vec<String>,
+    pub inline_policies: Vec<String>,
+    pub attached_policies: Vec<AwsAttachedPolicy>,
+    pub tags: HashMap<String, String>,
+}
+
+pub struct AwsIamRole {
+    pub role_id: String,
+    pub role_name: String,
+    pub arn: String,
+    pub path: String,
+    pub assume_role_policy: Value,  // Trust policy
+    pub description: Option<String>,
+    pub max_session_duration: i32,
+    pub create_date: DateTime<Utc>,
+    pub inline_policies: Vec<String>,
+    pub attached_policies: Vec<AwsAttachedPolicy>,
+    pub last_used: Option<RoleLastUsed>,
+    pub tags: HashMap<String, String>,
+}
+
+pub struct AwsAccessKey {
+    pub access_key_id: String,
+    pub status: AccessKeyStatus,  // Active | Inactive
+    pub create_date: DateTime<Utc>,
+    pub last_used_date: Option<DateTime<Utc>>,
+    pub last_used_service: Option<String>,
+    pub last_used_region: Option<String>,
+}
+```
+
+*Compliance Checks*:
+```rust
+pub struct IamComplianceChecks;
+
+impl IamComplianceChecks {
+    /// CC6.1 - Root account should have MFA
+    fn check_root_mfa(summary: &CredentialReport) -> ComplianceResult;
+
+    /// CC6.2 - Access keys should be rotated within 90 days
+    fn check_access_key_rotation(keys: &[AwsAccessKey]) -> ComplianceResult;
+
+    /// CC6.1 - All human users should have MFA
+    fn check_user_mfa(users: &[AwsIamUser]) -> ComplianceResult;
+
+    /// CC6.3 - No inline policies on users (use groups)
+    fn check_no_user_inline_policies(users: &[AwsIamUser]) -> ComplianceResult;
+
+    /// CC6.1 - No wildcard (*) in IAM policies
+    fn check_no_wildcard_permissions(policies: &[PolicyDocument]) -> ComplianceResult;
+
+    /// CC6.2 - Unused credentials should be disabled
+    fn check_unused_credentials(users: &[AwsIamUser], days: u32) -> ComplianceResult;
+}
+```
+
+---
+
+**2. CloudTrail Integration** (`aws/cloudtrail.rs`)
+
+*Capabilities*: `AuditLogs`, `ComplianceStatus`
+
+*API Calls*:
+```rust
+// Trail configuration
+cloudtrail.describe_trails() -> TrailInfo[]
+cloudtrail.get_trail_status(trail_name) -> TrailStatus
+
+// Events (for evidence collection)
+cloudtrail.lookup_events(
+    start_time, end_time,
+    lookup_attributes: [EventCategory, EventName, ResourceType],
+    max_results
+) -> Event[]
+
+// For real-time: CloudTrail Lake or S3 event notifications
+cloudtrail.list_event_data_stores() -> EventDataStore[]
+cloudtrail.start_query(query_statement) -> QueryId
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| CloudTrail Configuration | Trail settings and status | CC4.1, CC7.2 |
+| Management Events | API activity for period | CC7.2, CC7.3 |
+| Console Sign-in Events | User authentication events | CC6.1, CC7.2 |
+| IAM Changes | User/role/policy modifications | CC6.1, CC6.2 |
+| Security Group Changes | Network security modifications | CC6.6, CC6.7 |
+| S3 Access Logs | Data access events (if enabled) | CC6.6, CC7.3 |
+
+*Data Model*:
+```rust
+pub struct AwsCloudTrailEvent {
+    pub event_id: String,
+    pub event_name: String,
+    pub event_time: DateTime<Utc>,
+    pub event_source: String,
+    pub user_identity: UserIdentity,
+    pub source_ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub aws_region: String,
+    pub resources: Vec<Resource>,
+    pub request_parameters: Option<Value>,
+    pub response_elements: Option<Value>,
+    pub error_code: Option<String>,
+    pub error_message: Option<String>,
+    pub read_only: bool,
+    pub management_event: bool,
+}
+
+pub struct UserIdentity {
+    pub identity_type: String,  // Root, IAMUser, AssumedRole, etc.
+    pub principal_id: String,
+    pub arn: Option<String>,
+    pub account_id: String,
+    pub user_name: Option<String>,
+    pub session_context: Option<SessionContext>,
+}
+```
+
+*Event Categories for Compliance*:
+```rust
+pub enum CloudTrailEventCategory {
+    // Authentication & Access
+    ConsoleLogin,
+    AssumeRole,
+    GetSessionToken,
+
+    // IAM Changes (CC6.1, CC6.2)
+    CreateUser,
+    DeleteUser,
+    CreateRole,
+    AttachUserPolicy,
+    CreateAccessKey,
+    UpdateLoginProfile,
+
+    // Security Configuration (CC6.6, CC7.1)
+    AuthorizeSecurityGroupIngress,
+    CreateSecurityGroup,
+    ModifyVpcAttribute,
+    CreateNetworkAcl,
+
+    // Data Access (CC6.6, CC7.3)
+    GetObject,
+    PutObject,
+    DeleteObject,
+
+    // Resource Changes (CC8.1)
+    RunInstances,
+    TerminateInstances,
+    CreateDBInstance,
+    ModifyDBInstance,
+}
+```
+
+---
+
+**3. Security Hub Integration** (`aws/securityhub.rs`)
+
+*Capabilities*: `SecurityFindings`, `ComplianceStatus`
+
+*API Calls*:
+```rust
+// Standards
+securityhub.get_enabled_standards() -> StandardsSubscription[]
+securityhub.describe_standards_controls(subscription_arn) -> StandardsControl[]
+
+// Findings
+securityhub.get_findings(
+    filters: {
+        severity_label, workflow_status, compliance_status,
+        product_name, record_state, resource_type
+    },
+    sort_criteria,
+    max_results
+) -> AwsSecurityFinding[]
+
+// Aggregation
+securityhub.get_insight_results(insight_arn) -> InsightResults
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| Security Hub Enabled Standards | CIS, AWS Best Practices, PCI DSS | CC3.2, CC7.1 |
+| Critical/High Findings | Active security issues | CC7.1, CC7.2 |
+| Compliance Summary | Pass/fail by standard | CC3.2, CC7.1 |
+| Finding Trends | New vs resolved over time | CC7.2, CC4.1 |
+| Resource Findings Map | Findings by resource | CC7.1, A1.1 |
+
+*Data Model*:
+```rust
+pub struct AwsSecurityHubFinding {
+    pub id: String,
+    pub schema_version: String,
+    pub product_arn: String,
+    pub generator_id: String,
+    pub aws_account_id: String,
+    pub types: Vec<String>,
+    pub title: String,
+    pub description: String,
+    pub severity: Severity,
+    pub confidence: Option<i32>,
+    pub criticality: Option<i32>,
+    pub remediation: Option<Remediation>,
+    pub resources: Vec<Resource>,
+    pub compliance: Option<Compliance>,
+    pub workflow: WorkflowState,
+    pub record_state: RecordState,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+pub struct Severity {
+    pub label: SeverityLabel,  // INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL
+    pub normalized: i32,       // 0-100
+}
+
+pub struct Compliance {
+    pub status: ComplianceStatus,  // PASSED, WARNING, FAILED, NOT_AVAILABLE
+    pub related_requirements: Vec<String>,
+    pub status_reasons: Vec<StatusReason>,
+}
+```
+
+*Standard Mappings*:
+```rust
+pub struct SecurityHubStandardMappings;
+
+impl SecurityHubStandardMappings {
+    // AWS Foundational Security Best Practices → SOC 2
+    const AWS_FSBP_TO_SOC2: &[(&str, &str)] = &[
+        ("IAM.1", "CC6.1"),   // MFA for root
+        ("IAM.4", "CC6.2"),   // Root access key
+        ("IAM.6", "CC6.1"),   // Hardware MFA for root
+        ("EC2.2", "CC6.6"),   // Default SG no traffic
+        ("S3.1", "CC6.7"),    // Block public access
+        ("S3.4", "CC6.6"),    // Encryption at rest
+        ("RDS.3", "CC6.6"),   // Encryption at rest
+        ("CloudTrail.1", "CC7.2"),  // Enabled
+        ("CloudTrail.2", "CC7.2"),  // Encryption
+        // ... more mappings
+    ];
+
+    // CIS AWS Foundations Benchmark → SOC 2
+    const CIS_TO_SOC2: &[(&str, &str)] = &[
+        ("1.1", "CC6.1"),     // Root MFA
+        ("1.2", "CC6.2"),     // MFA enabled
+        ("1.4", "CC6.2"),     // Access key rotation
+        ("2.1", "CC7.2"),     // CloudTrail enabled
+        ("2.3", "CC6.6"),     // S3 bucket for logs
+        ("3.1", "CC7.2"),     // Log metric: unauthorized API
+        // ... more mappings
+    ];
+}
+```
+
+---
+
+**4. AWS Config Integration** (`aws/config.rs`)
+
+*Capabilities*: `ComplianceStatus`, `ConfigurationState`
+
+*API Calls*:
+```rust
+// Rules
+config.describe_config_rules() -> ConfigRule[]
+config.describe_compliance_by_config_rule() -> ComplianceByConfigRule[]
+
+// Resources
+config.list_discovered_resources(resource_type) -> ResourceIdentifier[]
+config.get_resource_config_history(resource_type, resource_id) -> ConfigurationItem[]
+
+// Compliance
+config.get_compliance_details_by_config_rule(rule_name) -> EvaluationResult[]
+config.get_compliance_summary_by_resource_type() -> ComplianceSummary[]
+
+// Conformance Packs
+config.describe_conformance_packs() -> ConformancePack[]
+config.get_conformance_pack_compliance_summary() -> ConformancePackComplianceSummary[]
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| Config Rules Compliance | Rule evaluations | CC3.2, CC7.1 |
+| Resource Configuration | Current state snapshots | CC6.1, CC8.1 |
+| Configuration Changes | Change history | CC8.1, CC7.2 |
+| Conformance Pack Status | Pack-level compliance | CC3.2, CC7.1 |
+| Non-Compliant Resources | Failing resources | CC7.1, CC7.2 |
+
+*Data Model*:
+```rust
+pub struct AwsConfigRuleCompliance {
+    pub config_rule_name: String,
+    pub config_rule_arn: String,
+    pub compliance_type: ComplianceType,  // COMPLIANT, NON_COMPLIANT, etc.
+    pub annotation: Option<String>,
+    pub evaluation_results: Vec<EvaluationResult>,
+}
+
+pub struct EvaluationResult {
+    pub resource_type: String,
+    pub resource_id: String,
+    pub compliance_type: ComplianceType,
+    pub result_recorded_time: DateTime<Utc>,
+    pub config_rule_invoked_time: DateTime<Utc>,
+    pub annotation: Option<String>,
+}
+
+pub struct AwsConfigurationItem {
+    pub resource_type: String,
+    pub resource_id: String,
+    pub resource_name: Option<String>,
+    pub arn: Option<String>,
+    pub aws_region: String,
+    pub configuration_state_id: String,
+    pub configuration: Value,
+    pub configuration_item_capture_time: DateTime<Utc>,
+    pub configuration_item_status: ConfigurationItemStatus,
+    pub related_events: Vec<String>,
+    pub relationships: Vec<Relationship>,
+    pub tags: HashMap<String, String>,
+}
+```
+
+*Config Rule to Control Mappings*:
+```rust
+pub struct AwsConfigRuleMappings;
+
+impl AwsConfigRuleMappings {
+    const MANAGED_RULES_TO_SOC2: &[(&str, &str)] = &[
+        // Identity & Access
+        ("iam-user-mfa-enabled", "CC6.1"),
+        ("iam-root-access-key-check", "CC6.2"),
+        ("iam-password-policy", "CC6.1"),
+        ("access-keys-rotated", "CC6.2"),
+
+        // Encryption
+        ("encrypted-volumes", "CC6.6"),
+        ("rds-storage-encrypted", "CC6.6"),
+        ("s3-bucket-server-side-encryption-enabled", "CC6.6"),
+        ("s3-bucket-ssl-requests-only", "CC6.6"),
+
+        // Logging & Monitoring
+        ("cloudtrail-enabled", "CC7.2"),
+        ("cloud-trail-encryption-enabled", "CC7.2"),
+        ("cloudwatch-log-group-encrypted", "CC7.2"),
+        ("vpc-flow-logs-enabled", "CC7.2"),
+
+        // Network Security
+        ("restricted-ssh", "CC6.6"),
+        ("vpc-default-security-group-closed", "CC6.6"),
+        ("ec2-instance-no-public-ip", "CC6.6"),
+
+        // Backup & Recovery
+        ("rds-instance-deletion-protection-enabled", "A1.2"),
+        ("db-instance-backup-enabled", "A1.2"),
+        ("dynamodb-pitr-enabled", "A1.2"),
+
+        // More...
+    ];
+}
+```
+
+---
+
+**5. S3 Integration** (`aws/s3.rs`)
+
+*Capabilities*: `ConfigurationState`, `ComplianceStatus`
+
+*API Calls*:
+```rust
+// Bucket listing
+s3.list_buckets() -> Bucket[]
+
+// Bucket configuration (per bucket)
+s3.get_bucket_encryption(bucket) -> ServerSideEncryptionConfiguration
+s3.get_bucket_versioning(bucket) -> VersioningConfiguration
+s3.get_bucket_logging(bucket) -> LoggingEnabled
+s3.get_bucket_policy(bucket) -> Policy
+s3.get_bucket_acl(bucket) -> AccessControlPolicy
+s3.get_public_access_block(bucket) -> PublicAccessBlockConfiguration
+s3.get_bucket_lifecycle_configuration(bucket) -> LifecycleConfiguration
+s3.get_bucket_replication(bucket) -> ReplicationConfiguration
+s3.get_bucket_tagging(bucket) -> Tagging
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| Bucket Inventory | All buckets with regions | A1.1, CC6.6 |
+| Encryption Status | SSE-S3, SSE-KMS, or none | CC6.6, CC6.7 |
+| Public Access Status | Block public access settings | CC6.6, CC6.7 |
+| Versioning Status | Enabled/disabled | A1.2, CC6.1 |
+| Logging Status | Access logging config | CC7.2, CC7.3 |
+| Bucket Policies | IAM policies on buckets | CC6.1, CC6.6 |
+| Lifecycle Rules | Data retention policies | PI1.3, C1.1 |
+
+*Data Model*:
+```rust
+pub struct AwsS3Bucket {
+    pub name: String,
+    pub region: String,
+    pub creation_date: DateTime<Utc>,
+    pub encryption: Option<BucketEncryption>,
+    pub versioning: VersioningStatus,
+    pub logging: Option<LoggingConfig>,
+    pub public_access_block: Option<PublicAccessBlockConfig>,
+    pub policy: Option<Value>,
+    pub acl: BucketAcl,
+    pub lifecycle_rules: Vec<LifecycleRule>,
+    pub replication: Option<ReplicationConfig>,
+    pub tags: HashMap<String, String>,
+    pub compliance_checks: S3ComplianceResults,
+}
+
+pub struct S3ComplianceResults {
+    pub is_encrypted: bool,
+    pub is_public: bool,
+    pub versioning_enabled: bool,
+    pub logging_enabled: bool,
+    pub public_access_blocked: bool,
+    pub ssl_enforced: bool,
+    pub has_lifecycle_policy: bool,
+}
+```
+
+---
+
+**6. EC2 Integration** (`aws/ec2.rs`)
+
+*Capabilities*: `AssetInventory`, `ConfigurationState`
+
+*API Calls*:
+```rust
+// Instances
+ec2.describe_instances() -> Reservation[]
+ec2.describe_instance_status() -> InstanceStatus[]
+
+// Security Groups
+ec2.describe_security_groups() -> SecurityGroup[]
+
+// VPCs & Networking
+ec2.describe_vpcs() -> Vpc[]
+ec2.describe_subnets() -> Subnet[]
+ec2.describe_network_acls() -> NetworkAcl[]
+ec2.describe_route_tables() -> RouteTable[]
+ec2.describe_internet_gateways() -> InternetGateway[]
+ec2.describe_nat_gateways() -> NatGateway[]
+
+// Volumes
+ec2.describe_volumes() -> Volume[]
+ec2.describe_snapshots(owner: self) -> Snapshot[]
+
+// AMIs
+ec2.describe_images(owner: self) -> Image[]
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| EC2 Instance Inventory | All instances with details | A1.1, CC6.1 |
+| Security Group Rules | Inbound/outbound rules | CC6.6, CC6.7 |
+| VPC Configuration | Network architecture | CC6.6, CC6.7 |
+| EBS Encryption Status | Volume encryption | CC6.6 |
+| Public IP Inventory | Instances with public IPs | CC6.6, CC6.7 |
+| AMI Inventory | Custom machine images | CC8.1 |
+| Snapshot Inventory | Backup snapshots | A1.2 |
+
+*Data Model*:
+```rust
+pub struct AwsEc2Instance {
+    pub instance_id: String,
+    pub instance_type: String,
+    pub state: InstanceState,
+    pub launch_time: DateTime<Utc>,
+    pub availability_zone: String,
+    pub vpc_id: Option<String>,
+    pub subnet_id: Option<String>,
+    pub private_ip_address: Option<String>,
+    pub public_ip_address: Option<String>,
+    pub iam_instance_profile: Option<IamInstanceProfile>,
+    pub security_groups: Vec<GroupIdentifier>,
+    pub root_device_type: String,
+    pub root_device_name: String,
+    pub block_device_mappings: Vec<InstanceBlockDeviceMapping>,
+    pub platform: Option<String>,  // Windows or None (Linux)
+    pub tags: HashMap<String, String>,
+    pub metadata_options: InstanceMetadataOptions,
+}
+
+pub struct AwsSecurityGroup {
+    pub group_id: String,
+    pub group_name: String,
+    pub description: String,
+    pub vpc_id: Option<String>,
+    pub inbound_rules: Vec<IpPermission>,
+    pub outbound_rules: Vec<IpPermission>,
+    pub tags: HashMap<String, String>,
+    pub compliance_checks: SecurityGroupComplianceResults,
+}
+
+pub struct SecurityGroupComplianceResults {
+    pub allows_unrestricted_ssh: bool,      // 0.0.0.0/0 to port 22
+    pub allows_unrestricted_rdp: bool,      // 0.0.0.0/0 to port 3389
+    pub allows_all_inbound: bool,           // 0.0.0.0/0 all ports
+    pub allows_all_outbound: bool,
+    pub risky_rules: Vec<RiskyRuleDetail>,
+}
+```
+
+---
+
+**7. RDS Integration** (`aws/rds.rs`)
+
+*Capabilities*: `AssetInventory`, `ConfigurationState`
+
+*API Calls*:
+```rust
+// Instances
+rds.describe_db_instances() -> DBInstance[]
+rds.describe_db_clusters() -> DBCluster[]
+
+// Security
+rds.describe_db_security_groups() -> DBSecurityGroup[]
+rds.describe_db_subnet_groups() -> DBSubnetGroup[]
+
+// Snapshots & Backups
+rds.describe_db_snapshots() -> DBSnapshot[]
+rds.describe_db_cluster_snapshots() -> DBClusterSnapshot[]
+
+// Parameters
+rds.describe_db_parameter_groups() -> DBParameterGroup[]
+rds.describe_db_parameters(group_name) -> Parameter[]
+```
+
+*Evidence Collected*:
+| Evidence Type | Description | Control Codes |
+|---------------|-------------|---------------|
+| RDS Instance Inventory | All databases | A1.1, CC6.1 |
+| Encryption Status | At-rest encryption | CC6.6 |
+| Public Accessibility | Publicly accessible flag | CC6.6, CC6.7 |
+| Backup Configuration | Retention, window | A1.2 |
+| Security Group Config | Network access controls | CC6.6 |
+| SSL/TLS Status | In-transit encryption | CC6.6 |
+| Multi-AZ Status | High availability | A1.2 |
+
+*Data Model*:
+```rust
+pub struct AwsRdsInstance {
+    pub db_instance_identifier: String,
+    pub db_instance_class: String,
+    pub engine: String,
+    pub engine_version: String,
+    pub db_instance_status: String,
+    pub master_username: String,
+    pub endpoint: Option<Endpoint>,
+    pub allocated_storage: i32,
+    pub instance_create_time: Option<DateTime<Utc>>,
+    pub availability_zone: Option<String>,
+    pub multi_az: bool,
+    pub publicly_accessible: bool,
+    pub storage_encrypted: bool,
+    pub kms_key_id: Option<String>,
+    pub vpc_security_groups: Vec<VpcSecurityGroupMembership>,
+    pub db_subnet_group: Option<DBSubnetGroup>,
+    pub backup_retention_period: i32,
+    pub preferred_backup_window: Option<String>,
+    pub deletion_protection: bool,
+    pub iam_database_authentication_enabled: bool,
+    pub performance_insights_enabled: bool,
+    pub auto_minor_version_upgrade: bool,
+    pub tags: HashMap<String, String>,
+    pub compliance_checks: RdsComplianceResults,
+}
+
+pub struct RdsComplianceResults {
+    pub is_encrypted: bool,
+    pub is_public: bool,
+    pub has_backups: bool,
+    pub is_multi_az: bool,
+    pub deletion_protection: bool,
+    pub iam_auth_enabled: bool,
+    pub auto_upgrade_enabled: bool,
+}
+```
+
+---
+
+**AWS Integration API Endpoints**
+
+```
+POST   /api/v1/integrations/aws/test         # Test AWS connection
+GET    /api/v1/integrations/:id/aws/iam      # Get IAM sync results
+GET    /api/v1/integrations/:id/aws/cloudtrail/events  # Get recent events
+GET    /api/v1/integrations/:id/aws/securityhub/findings  # Get findings
+GET    /api/v1/integrations/:id/aws/config/compliance  # Get Config compliance
+GET    /api/v1/integrations/:id/aws/s3/buckets  # Get S3 inventory
+GET    /api/v1/integrations/:id/aws/ec2/instances  # Get EC2 inventory
+GET    /api/v1/integrations/:id/aws/rds/instances  # Get RDS inventory
+POST   /api/v1/integrations/:id/sync         # Trigger full sync (existing)
+POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
+```
+
+---
+
+**UI Components**
+
+1. **AWS Setup Wizard** (`/integrations/new/aws`)
+   - Choose auth method (IAM Role vs Access Keys)
+   - CloudFormation template download for role creation
+   - Region selection (multi-select)
+   - Service enablement toggles
+   - Test connection with detailed results
+
+2. **AWS Dashboard** (`/integrations/:id/aws`)
+   - Overview cards: IAM users, EC2 instances, RDS databases, S3 buckets
+   - Security Hub findings summary (critical/high/medium/low)
+   - Config compliance summary by category
+   - Recent CloudTrail events timeline
+   - Compliance score trend chart
+
+3. **AWS IAM View** (`/integrations/:id/aws/iam`)
+   - User table with MFA status, last activity, access keys
+   - Role table with trust policies, attached policies
+   - Policy analysis with risky permissions highlighted
+   - Access key age warnings
+
+4. **AWS Security Findings** (`/integrations/:id/aws/findings`)
+   - Filterable findings list (severity, status, standard)
+   - Finding detail drawer with remediation steps
+   - Link findings to controls and risks
+   - Bulk acknowledge/suppress
+
+5. **AWS Asset Inventory** (`/integrations/:id/aws/inventory`)
+   - Tabbed view: EC2 | RDS | S3 | VPCs
+   - Compliance status badges per resource
+   - Link assets to OpenGRC asset inventory
+   - Export to CSV
+
+---
+
+**Implementation Order**
+
+1. **Phase 2.2.1**: Core AWS Provider
+   - [ ] AWS credential handling (role assumption, access keys)
+   - [ ] Multi-region iteration
+   - [ ] Base `AwsIntegrationProvider` struct
+   - [ ] Test connection implementation
+   - [ ] Add aws-sdk-* crates to Cargo.toml
+
+2. **Phase 2.2.2**: IAM Integration
+   - [ ] `AwsIamCollector` implementation
+   - [ ] User, role, policy collection
+   - [ ] MFA and access key analysis
+   - [ ] Compliance checks
+   - [ ] Evidence generation
+
+3. **Phase 2.2.3**: Security Hub & Config
+   - [ ] `AwsSecurityHubCollector` implementation
+   - [ ] `AwsConfigCollector` implementation
+   - [ ] Finding normalization
+   - [ ] Control mapping
+   - [ ] Compliance aggregation
+
+4. **Phase 2.2.4**: Asset Collection (S3, EC2, RDS)
+   - [ ] `AwsS3Collector` implementation
+   - [ ] `AwsEc2Collector` implementation
+   - [ ] `AwsRdsCollector` implementation
+   - [ ] Asset linking to OpenGRC inventory
+
+5. **Phase 2.2.5**: CloudTrail Integration
+   - [ ] `AwsCloudTrailCollector` implementation
+   - [ ] Event categorization
+   - [ ] Security event alerting
+   - [ ] Audit log evidence
+
+6. **Phase 2.2.6**: UI Implementation
+   - [ ] AWS setup wizard
+   - [ ] AWS dashboard
+   - [ ] IAM, findings, inventory views
+   - [ ] CloudFormation template generator
+
+---
+
+- [ ] **AWS** (Detailed above)
 - [ ] **GCP**
   - IAM & Admin
   - Cloud Audit Logs

@@ -1,5 +1,6 @@
 pub mod asset;
 pub mod audit;
+pub mod aws;
 pub mod control;
 pub mod evidence;
 pub mod framework;
@@ -11,13 +12,14 @@ pub mod vendor;
 
 use sqlx::PgPool;
 use crate::cache::CacheClient;
-use crate::integrations::OAuthService;
+use crate::integrations::{AwsProvider, OAuthService};
 use crate::search::SearchClient;
 use crate::storage::StorageClient;
 use crate::utils::EncryptionService;
 
 pub use asset::AssetService;
 pub use audit::AuditService;
+pub use aws::AwsService;
 pub use control::ControlService;
 pub use evidence::EvidenceService;
 pub use framework::FrameworkService;
@@ -43,10 +45,11 @@ pub struct AppServices {
     pub audit: AuditService,
     pub reports: ReportsService,
     pub integration: IntegrationService,
+    pub aws: AwsService,
 }
 
 impl AppServices {
-    pub fn new(
+    pub async fn new(
         db: PgPool,
         cache: CacheClient,
         storage: StorageClient,
@@ -68,6 +71,13 @@ impl AppServices {
         let oauth = OAuthService::from_env(oauth_redirect_base_url);
         let integration = IntegrationService::new(db.clone(), cache.clone(), encryption, oauth);
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, integration }
+        // Register integration providers
+        integration.register_provider(Box::new(AwsProvider::new())).await;
+        tracing::info!("Registered AWS integration provider");
+
+        // AWS-specific service for querying synced data
+        let aws = AwsService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, integration, aws }
     }
 }

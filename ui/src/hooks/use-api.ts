@@ -290,3 +290,165 @@ export function useIntegrationHealthTrend(hours?: number) {
     `/integrations/health/trend${hours ? `?hours=${hours}` : ''}`
   )
 }
+
+// AWS Integration hooks
+export function useAwsOverview(integrationId: string) {
+  return useApi<{ data: import('@/types').AwsOverview }>(
+    `/integrations/${integrationId}/aws/overview`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsIamUsers(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsIamUser>>(
+    `/integrations/${integrationId}/aws/iam/users${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsIamRoles(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsIamRole>>(
+    `/integrations/${integrationId}/aws/iam/roles${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsIamPolicies(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsIamPolicy>>(
+    `/integrations/${integrationId}/aws/iam/policies${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsFindings(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsSecurityFinding>>(
+    `/integrations/${integrationId}/aws/findings${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsFindingsSummary(integrationId: string) {
+  return useApi<{ data: import('@/types').AwsFindingsSummary }>(
+    `/integrations/${integrationId}/aws/findings/summary`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsConfigRules(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsConfigRule>>(
+    `/integrations/${integrationId}/aws/config-rules${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsS3Buckets(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsS3Bucket>>(
+    `/integrations/${integrationId}/aws/s3/buckets${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsEc2Instances(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsEc2Instance>>(
+    `/integrations/${integrationId}/aws/ec2/instances${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsSecurityGroups(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsSecurityGroup>>(
+    `/integrations/${integrationId}/aws/ec2/security-groups${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsRdsInstances(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsRdsInstance>>(
+    `/integrations/${integrationId}/aws/rds/instances${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsCloudTrailEvents(integrationId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AwsPaginatedResponse<import('@/types').AwsCloudTrailEvent>>(
+    `/integrations/${integrationId}/aws/cloudtrail${queryString}`,
+    { enabled: !!integrationId }
+  )
+}
+
+export function useAwsCloudTrailStats(integrationId: string) {
+  return useApi<{ data: import('@/types').AwsCloudTrailStats }>(
+    `/integrations/${integrationId}/aws/cloudtrail/stats`,
+    { enabled: !!integrationId }
+  )
+}

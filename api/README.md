@@ -109,7 +109,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "1.4.0"
+  "version": "1.6.0"
 }
 ```
 
@@ -370,6 +370,71 @@ API_BASE_URL=https://api.your-domain.com
 
 **Supported Integration Types**: AWS, GCP, Azure, Okta, Google Workspace, Azure AD, GitHub, GitLab, Jira, Cloudflare, Datadog, PagerDuty, Webhook
 
+##### AWS Integration (Implemented v1.6.0)
+
+Full AWS integration with automated evidence collection from 7 AWS services:
+
+**AWS Services Supported**:
+- IAM - Users, Roles, Policies, MFA status, Access Keys
+- Security Hub - Security findings with severity tracking
+- AWS Config - Compliance rules and resource compliance
+- CloudTrail - Audit events with sensitive action detection
+- S3 - Bucket inventory with encryption/versioning status
+- EC2 - Instance inventory with security groups
+- RDS - Database instances with encryption status
+
+**AWS API Endpoints**:
+- `GET /api/v1/integrations/:id/aws/overview` - Account overview with compliance stats
+- `GET /api/v1/integrations/:id/aws/iam/users` - IAM users with MFA/access keys
+- `GET /api/v1/integrations/:id/aws/iam/roles` - IAM roles
+- `GET /api/v1/integrations/:id/aws/iam/policies` - IAM policies with risk analysis
+- `GET /api/v1/integrations/:id/aws/findings` - Security Hub findings
+- `GET /api/v1/integrations/:id/aws/findings/summary` - Findings summary by severity
+- `GET /api/v1/integrations/:id/aws/config-rules` - AWS Config rule compliance
+- `GET /api/v1/integrations/:id/aws/s3/buckets` - S3 bucket inventory
+- `GET /api/v1/integrations/:id/aws/ec2/instances` - EC2 instance inventory
+- `GET /api/v1/integrations/:id/aws/ec2/security-groups` - Security groups
+- `GET /api/v1/integrations/:id/aws/rds/instances` - RDS database inventory
+- `GET /api/v1/integrations/:id/aws/cloudtrail` - CloudTrail events
+- `GET /api/v1/integrations/:id/aws/cloudtrail/stats` - CloudTrail statistics
+
+**AWS Configuration**:
+```json
+{
+  "auth_type": "access_key",  // or "assume_role"
+  "access_key_id": "AKIA...",
+  "secret_access_key": "...",
+  "regions": ["us-east-1", "us-west-2"],  // optional, defaults to all regions
+  // For assume_role auth:
+  "role_arn": "arn:aws:iam::123456789012:role/OpenGRCRole"
+}
+```
+
+**Required IAM Policy**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:Get*", "iam:List*",
+        "securityhub:GetFindings", "securityhub:GetEnabledStandards",
+        "config:Describe*", "config:Get*",
+        "cloudtrail:LookupEvents",
+        "s3:ListAllMyBuckets", "s3:GetBucket*",
+        "ec2:Describe*",
+        "rds:Describe*",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**SOC 2 Control Mappings**: AWS findings are automatically mapped to SOC 2 controls (CC6.1, CC6.2, CC6.3, CC7.2, etc.)
+
 ##### Error Handling & Retry Logic (Implemented)
 
 **Error Categories**:
@@ -567,11 +632,12 @@ Structured JSON logging is enabled by default:
 8. ~~Add integration health monitoring dashboard~~ ✓ (v1.3.0)
 9. ~~Implement OAuth2 connection flow for integrations~~ ✓ (v1.4.0)
 10. ~~Implement error handling & retry logic with circuit breaker~~ ✓ (v1.4.0)
-11. Build scheduled sync job worker (cron-based)
-12. Implement actual integration providers (AWS, GitHub, Okta, etc.)
-13. Add comprehensive tests (unit, integration, e2e)
-14. Add OpenAPI/Swagger documentation
-15. Set up CI/CD pipelines
+11. ~~Implement AWS integration provider~~ ✓ (v1.6.0)
+12. Build scheduled sync job worker (cron-based)
+13. Implement additional integration providers (GitHub, Okta, GCP, etc.)
+14. Add comprehensive tests (unit, integration, e2e)
+15. Add OpenAPI/Swagger documentation
+16. Set up CI/CD pipelines
 
 ## Contributing
 

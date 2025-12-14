@@ -1,6 +1,7 @@
 pub mod assets;
 pub mod audits;
 pub mod auth;
+pub mod aws;
 pub mod controls;
 pub mod evidence;
 pub mod frameworks;
@@ -180,6 +181,20 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/search", get(search::search))
         .route("/api/v1/search/status", get(search::search_status))
         .route("/api/v1/search/reindex", post(search::reindex_all))
+        // AWS Integration specific routes
+        .route("/api/v1/integrations/:id/aws/overview", get(aws::get_aws_overview))
+        .route("/api/v1/integrations/:id/aws/iam/users", get(aws::list_iam_users))
+        .route("/api/v1/integrations/:id/aws/iam/roles", get(aws::list_iam_roles))
+        .route("/api/v1/integrations/:id/aws/iam/policies", get(aws::list_iam_policies))
+        .route("/api/v1/integrations/:id/aws/findings", get(aws::list_findings))
+        .route("/api/v1/integrations/:id/aws/findings/summary", get(aws::get_findings_summary))
+        .route("/api/v1/integrations/:id/aws/config-rules", get(aws::list_config_rules))
+        .route("/api/v1/integrations/:id/aws/s3/buckets", get(aws::list_s3_buckets))
+        .route("/api/v1/integrations/:id/aws/ec2/instances", get(aws::list_ec2_instances))
+        .route("/api/v1/integrations/:id/aws/ec2/security-groups", get(aws::list_security_groups))
+        .route("/api/v1/integrations/:id/aws/rds/instances", get(aws::list_rds_instances))
+        .route("/api/v1/integrations/:id/aws/cloudtrail", get(aws::list_cloudtrail_events))
+        .route("/api/v1/integrations/:id/aws/cloudtrail/stats", get(aws::get_cloudtrail_stats))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,
