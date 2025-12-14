@@ -51,13 +51,35 @@ pub struct CorsConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct S3Config {
-    pub bucket: String,
+pub struct StorageConfig {
+    /// Storage type: "local" or "s3"
+    pub storage_type: String,
+    /// Local storage path (used when storage_type = "local")
+    pub local_path: Option<String>,
+    /// S3 bucket (used when storage_type = "s3")
+    pub bucket: Option<String>,
+    /// S3 region
     pub region: String,
+    /// Custom S3 endpoint (for MinIO, LocalStack)
     pub endpoint: Option<String>,
+    /// AWS access key (optional, uses IAM role if not set)
     pub access_key_id: Option<String>,
+    /// AWS secret key
     pub secret_access_key: Option<String>,
 }
+
+impl StorageConfig {
+    pub fn is_local(&self) -> bool {
+        self.storage_type.to_lowercase() == "local"
+    }
+
+    pub fn is_s3(&self) -> bool {
+        self.storage_type.to_lowercase() == "s3"
+    }
+}
+
+// Backwards compatibility alias
+pub type S3Config = StorageConfig;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct MeilisearchConfig {
@@ -128,8 +150,10 @@ impl Config {
             cors: CorsConfig {
                 origins: cors_origins,
             },
-            s3: S3Config {
-                bucket: env::var("S3_BUCKET").unwrap_or_else(|_| "opengrc-evidence".to_string()),
+            s3: StorageConfig {
+                storage_type: env::var("STORAGE_TYPE").unwrap_or_else(|_| "local".to_string()),
+                local_path: env::var("STORAGE_LOCAL_PATH").ok(),
+                bucket: env::var("S3_BUCKET").ok(),
                 region: env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
                 endpoint: env::var("S3_ENDPOINT").ok(),
                 access_key_id: env::var("AWS_ACCESS_KEY_ID").ok(),

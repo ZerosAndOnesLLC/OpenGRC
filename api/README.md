@@ -69,6 +69,17 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 # Generate with: openssl rand -hex 32
 ENCRYPTION_KEY=your_64_character_hex_key_here
 
+# Storage (optional, defaults to local)
+STORAGE_TYPE=local                    # "local" or "s3"
+STORAGE_LOCAL_PATH=./storage          # Path for local storage (default: ./storage)
+
+# S3 Storage (required if STORAGE_TYPE=s3)
+S3_BUCKET=opengrc-evidence
+S3_REGION=us-east-1
+S3_ENDPOINT=                          # Optional: for MinIO/LocalStack
+AWS_ACCESS_KEY_ID=                    # Optional: uses IAM role if not set
+AWS_SECRET_ACCESS_KEY=
+
 # Logging (optional)
 RUST_LOG=info,opengrc_api=debug
 ENVIRONMENT=development
@@ -109,7 +120,7 @@ Expected response:
   "status": "healthy",
   "database": "connected",
   "cache": "connected",
-  "version": "1.6.0"
+  "version": "1.9.0"
 }
 ```
 
@@ -435,6 +446,103 @@ Full AWS integration with automated evidence collection from 7 AWS services:
 
 **SOC 2 Control Mappings**: AWS findings are automatically mapped to SOC 2 controls (CC6.1, CC6.2, CC6.3, CC7.2, etc.)
 
+##### GitHub Integration (Implemented v1.8.0)
+
+Full GitHub integration with automated evidence collection for repository security and compliance:
+
+**GitHub Services Supported**:
+- Repositories - Repository inventory with visibility, settings, and metadata
+- Branch Protection - Branch protection rules with required reviews, status checks
+- Dependabot Alerts - Dependency vulnerability alerts with severity tracking
+- Code Scanning - Code scanning alerts from GitHub Advanced Security
+- Secret Scanning - Secret scanning alerts for exposed credentials
+- Organization Members - Member list with role assignments and 2FA status
+
+**GitHub API Endpoints**:
+- `GET /api/v1/integrations/:id/github/overview` - Organization overview with stats
+- `GET /api/v1/integrations/:id/github/repositories` - Repository inventory
+- `GET /api/v1/integrations/:id/github/branch-protection` - Branch protection status
+- `GET /api/v1/integrations/:id/github/dependabot` - Dependabot vulnerability alerts
+- `GET /api/v1/integrations/:id/github/code-scanning` - Code scanning alerts
+- `GET /api/v1/integrations/:id/github/secret-scanning` - Secret scanning alerts
+- `GET /api/v1/integrations/:id/github/members` - Organization members
+
+**GitHub Configuration**:
+```json
+{
+  "access_token": "ghp_...",  // Personal access token or OAuth token
+  "organization": "my-org",   // Optional: specific organization
+  "repositories": ["repo1", "repo2"],  // Optional: specific repos (empty = all)
+  "services": {
+    "repositories": true,
+    "branch_protection": true,
+    "dependabot_alerts": true,
+    "code_scanning": true,
+    "secret_scanning": true,
+    "members": true
+  }
+}
+```
+
+**Required GitHub Permissions** (for Personal Access Token):
+- `repo` - Full control of private repositories
+- `read:org` - Read organization membership
+- `security_events` - Read security events (for code scanning)
+- `admin:org` (optional) - For organization-level settings
+
+**SOC 2 Control Mappings**:
+- Repository settings → CC6.1 (Logical Access)
+- Branch protection → CC8.1 (Change Management)
+- Dependabot alerts → CC7.1 (Security Events)
+- Code scanning → CC7.2 (System Monitoring)
+- Secret scanning → CC6.7 (Security Incidents)
+- Organization members → CC6.2 (Access Management)
+
+##### Jira Integration (Implemented v1.8.0)
+
+Full Jira integration for project tracking and compliance workflows:
+
+**Jira Services Supported**:
+- Projects - Project inventory with metadata and lead assignment
+- Issues - Issue tracking with security-related filtering
+- Users - User access and license management
+- Permissions - Project role assignments and admin access
+
+**Jira API Endpoints**:
+- `GET /api/v1/integrations/:id/jira/overview` - Instance overview with stats
+- `GET /api/v1/integrations/:id/jira/projects` - Project inventory
+- `GET /api/v1/integrations/:id/jira/issues` - Issues (supports filtering)
+- `GET /api/v1/integrations/:id/jira/users` - User access report
+- `GET /api/v1/integrations/:id/jira/permissions` - Project permissions and roles
+
+**Jira Configuration**:
+```json
+{
+  "instance_url": "https://your-org.atlassian.net",
+  "email": "user@example.com",
+  "access_token": "ATATT3...",  // API token
+  "auth_method": "api_token",   // or "oauth"
+  "projects": ["PROJ1", "PROJ2"],  // Optional: specific projects (empty = all)
+  "services": {
+    "projects": true,
+    "issues": true,
+    "users": true,
+    "permissions": true
+  }
+}
+```
+
+**Jira API Token**:
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Create API token
+3. Use your email and token for authentication
+
+**SOC 2 Control Mappings**:
+- Project settings → CC6.1 (Logical Access)
+- Security issues → CC7.1 (Security Events)
+- User access → CC6.2 (Access Management)
+- Permissions → CC6.3 (Access Authorization)
+
 ##### Error Handling & Retry Logic (Implemented)
 
 **Error Categories**:
@@ -517,6 +625,36 @@ All errors return JSON:
 - Connection pooling for performance
 - Automatic migrations on startup
 - Prepared statements for security
+
+### File Storage
+
+The API supports two storage backends for evidence files:
+
+**Local Storage** (default, recommended for development):
+```bash
+STORAGE_TYPE=local
+STORAGE_LOCAL_PATH=./storage    # Files stored at ./storage/orgs/{org_id}/evidence/{evidence_id}/
+```
+
+- Files stored on local filesystem
+- No cloud credentials needed
+- Download URLs route through API (`/api/v1/storage/download/...`)
+- Great for development and testing
+
+**S3 Storage** (recommended for production):
+```bash
+STORAGE_TYPE=s3
+S3_BUCKET=opengrc-evidence
+S3_REGION=us-east-1
+AWS_ACCESS_KEY_ID=...           # Optional: uses IAM role if not set
+AWS_SECRET_ACCESS_KEY=...
+S3_ENDPOINT=http://localhost:9000  # Optional: for MinIO/LocalStack
+```
+
+- Files stored in S3 bucket
+- Presigned URLs for direct upload/download (faster, no API bottleneck)
+- Supports custom endpoints for MinIO/LocalStack in dev
+- Uses IAM roles in production (no credentials needed in ECS)
 
 ### Caching Strategy
 
@@ -633,11 +771,13 @@ Structured JSON logging is enabled by default:
 9. ~~Implement OAuth2 connection flow for integrations~~ ✓ (v1.4.0)
 10. ~~Implement error handling & retry logic with circuit breaker~~ ✓ (v1.4.0)
 11. ~~Implement AWS integration provider~~ ✓ (v1.6.0)
-12. Build scheduled sync job worker (cron-based)
-13. Implement additional integration providers (GitHub, Okta, GCP, etc.)
-14. Add comprehensive tests (unit, integration, e2e)
-15. Add OpenAPI/Swagger documentation
-16. Set up CI/CD pipelines
+12. ~~Implement GitHub integration provider~~ ✓ (v1.8.0)
+13. ~~Implement Jira integration provider~~ ✓ (v1.8.0)
+14. Build scheduled sync job worker (cron-based)
+15. Implement additional integration providers (Okta, GCP, Azure, etc.)
+16. Add comprehensive tests (unit, integration, e2e)
+17. Add OpenAPI/Swagger documentation
+18. Set up CI/CD pipelines
 
 ## Contributing
 

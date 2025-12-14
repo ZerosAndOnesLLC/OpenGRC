@@ -1,10 +1,12 @@
 use crate::cache::{org_cache_key, CacheClient};
+use crate::integrations::CollectedEvidence;
 use crate::models::{
     CreateEvidence, Evidence, EvidenceControlLink, EvidenceStats, EvidenceWithLinks,
     LinkedControl, ListEvidenceQuery, SourceCount, TypeCount, UpdateEvidence,
 };
 use crate::storage::StorageClient;
 use crate::utils::{AppError, AppResult};
+use chrono::{Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::time::Duration;
@@ -628,6 +630,123 @@ impl EvidenceService {
             .await?;
 
         Ok(stats)
+    }
+
+    // ==================== Integration Evidence ====================
+
+    /// Create evidence from integration-collected data with automatic control linking
+    /// based on framework requirement codes (e.g., "CC6.1" from SOC 2)
+    pub async fn create_from_integration(
+        &self,
+        org_id: Uuid,
+        integration_id: Uuid,
+        collected: Vec<CollectedEvidence>,
+    ) -> AppResult<i32> {
+        if collected.is_empty() {
+            return Ok(0);
+        }
+
+        let mut tx = self.db.begin().await?;
+        let mut created_count = 0;
+
+        for item in collected {
+            // Store large JSON data as source_reference (truncated) - full data could go to S3
+            let data_json = serde_json::to_string(&item.data).unwrap_or_default();
+            let source_ref = format!(
+                "integration:{}:{}",
+                integration_id,
+                item.source_reference.as_deref().unwrap_or("unknown")
+            );
+
+            // Set validity: 90 days from now
+            let valid_until = Utc::now() + ChronoDuration::days(90);
+
+            // Create evidence record
+            let evidence = sqlx::query_as::<_, Evidence>(
+                r#"
+                INSERT INTO evidence (organization_id, title, description, evidence_type, source,
+                                      source_reference, valid_until, collected_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                RETURNING id, organization_id, title, description, evidence_type, source,
+                          source_reference, file_path, file_size, mime_type, collected_at,
+                          valid_from, valid_until, uploaded_by, created_at
+                "#,
+            )
+            .bind(org_id)
+            .bind(&item.title)
+            .bind(&item.description)
+            .bind(&item.evidence_type)
+            .bind(&item.source)
+            .bind(&source_ref)
+            .bind(valid_until)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            // Store the full JSON data as a metadata record (optional: store in S3 for large data)
+            // For now, we'll store a summary in a separate table or just log it
+            if data_json.len() > 1000 {
+                tracing::debug!(
+                    "Evidence {} has {} bytes of data (consider S3 storage)",
+                    evidence.id,
+                    data_json.len()
+                );
+            }
+
+            // Auto-link to controls based on framework requirement codes
+            if !item.control_codes.is_empty() {
+                // Find controls that are mapped to these framework requirement codes
+                let control_ids: Vec<(Uuid,)> = sqlx::query_as(
+                    r#"
+                    SELECT DISTINCT c.id
+                    FROM controls c
+                    JOIN control_requirement_mappings crm ON crm.control_id = c.id
+                    JOIN framework_requirements fr ON fr.id = crm.framework_requirement_id
+                    WHERE c.organization_id = $1
+                      AND fr.code = ANY($2)
+                    "#,
+                )
+                .bind(org_id)
+                .bind(&item.control_codes)
+                .fetch_all(&mut *tx)
+                .await?;
+
+                // Create evidence-control links
+                for (control_id,) in control_ids {
+                    let _ = sqlx::query(
+                        r#"
+                        INSERT INTO evidence_control_links (evidence_id, control_id)
+                        VALUES ($1, $2)
+                        ON CONFLICT (evidence_id, control_id) DO NOTHING
+                        "#,
+                    )
+                    .bind(evidence.id)
+                    .bind(control_id)
+                    .execute(&mut *tx)
+                    .await?;
+                }
+
+                tracing::debug!(
+                    "Linked evidence {} to controls via codes: {:?}",
+                    evidence.id,
+                    item.control_codes
+                );
+            }
+
+            created_count += 1;
+        }
+
+        tx.commit().await?;
+
+        // Invalidate caches
+        self.invalidate_org_evidence_caches(org_id).await?;
+
+        tracing::info!(
+            "Created {} evidence records from integration {}",
+            created_count,
+            integration_id
+        );
+
+        Ok(created_count)
     }
 
     // ==================== Cache Invalidation ====================

@@ -195,6 +195,77 @@ pub async fn trigger_sync(
     })))
 }
 
+/// Collect evidence from an integration (runs sync and persists evidence)
+pub async fn collect_evidence(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<Value>> {
+    use crate::integrations::{AwsProvider, GitHubProvider, JiraProvider, IntegrationProvider, SyncContext};
+
+    let org_id = get_org_id(&user)?;
+
+    // Get integration details
+    let integration_with_stats = services.integration.get_integration(org_id, id).await?;
+    let integration = &integration_with_stats.integration;
+
+    // Get the appropriate provider based on integration type
+    let provider: Box<dyn IntegrationProvider> = match integration.integration_type.as_str() {
+        "aws" => Box::new(AwsProvider::new()),
+        "github" => Box::new(GitHubProvider::new()),
+        "jira" => Box::new(JiraProvider::new()),
+        _ => {
+            return Err(AppError::BadRequest(format!(
+                "Evidence collection is not supported for {} integrations",
+                integration.integration_type
+            )));
+        }
+    };
+
+    // Decrypt config
+    let encrypted_config = integration.config.as_ref().ok_or_else(|| {
+        AppError::BadRequest("Integration has no configuration".to_string())
+    })?;
+    let config = services.integration.decrypt_config(encrypted_config)?;
+
+    // Create sync context
+    let context = SyncContext {
+        organization_id: org_id,
+        integration_id: id,
+        sync_log_id: Uuid::new_v4(), // Temporary ID for evidence collection
+        full_sync: true,
+        sync_type: Some("evidence_collection".to_string()),
+    };
+
+    // Run sync with the appropriate provider
+    let sync_result = provider
+        .sync(&config, context)
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("{} sync failed: {}", integration.integration_type, e)))?;
+
+    // Persist collected evidence
+    let evidence_count = services
+        .evidence
+        .create_from_integration(org_id, id, sync_result.evidence_collected)
+        .await?;
+
+    // Update integration last_sync_at
+    sqlx::query("UPDATE integrations SET last_sync_at = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(&services.db)
+        .await?;
+
+    Ok(Json(json!({
+        "data": {
+            "evidence_created": evidence_count,
+            "records_processed": sync_result.records_processed,
+            "errors": sync_result.errors.len(),
+            "success": sync_result.success
+        },
+        "message": format!("Collected {} evidence records from {}", evidence_count, integration.integration_type)
+    })))
+}
+
 /// Get sync logs for an integration
 #[derive(Debug, Deserialize, Default)]
 pub struct SyncLogsQuery {

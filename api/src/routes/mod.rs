@@ -153,6 +153,7 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/integrations/:id", delete(integrations::delete_integration))
         .route("/api/v1/integrations/:id/test", post(integrations::test_connection))
         .route("/api/v1/integrations/:id/sync", post(integrations::trigger_sync))
+        .route("/api/v1/integrations/:id/collect-evidence", post(integrations::collect_evidence))
         .route("/api/v1/integrations/:id/logs", get(integrations::get_sync_logs))
         // OAuth routes
         .route("/api/v1/integrations/oauth/:type/authorize", post(integrations::oauth_authorize))

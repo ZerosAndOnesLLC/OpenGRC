@@ -39,7 +39,19 @@ import {
   Server,
   Webhook,
   Activity,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  GitBranch,
+  Kanban,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import Link from "next/link"
 import { useIntegrations, useAvailableIntegrations, useIntegrationStats, useMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api-client'
@@ -57,6 +69,56 @@ const statusVariants: Record<string, 'success' | 'warning' | 'destructive' | 'se
   error: 'destructive',
   inactive: 'secondary',
 }
+
+// AWS Sample IAM Policy for OpenGRC
+const AWS_SAMPLE_POLICY = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OpenGRCReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "iam:GetAccountPasswordPolicy",
+        "iam:GetAccountSummary",
+        "iam:ListUsers",
+        "iam:ListRoles",
+        "iam:ListPolicies",
+        "iam:ListGroups",
+        "iam:ListGroupsForUser",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListMFADevices",
+        "iam:ListAccessKeys",
+        "iam:GetUser",
+        "iam:GetRole",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "cloudtrail:DescribeTrails",
+        "cloudtrail:LookupEvents",
+        "securityhub:GetFindings",
+        "securityhub:GetEnabledStandards",
+        "securityhub:DescribeHub",
+        "config:DescribeConfigRules",
+        "config:DescribeComplianceByConfigRule",
+        "config:GetComplianceDetailsByConfigRule",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketLogging",
+        "s3:GetBucketEncryption",
+        "s3:GetBucketPublicAccessBlock",
+        "ec2:DescribeInstances",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeRegions",
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`
 
 const categoryIcons: Record<string, React.ReactNode> = {
   'Cloud Provider': <Cloud className="h-5 w-5" />,
@@ -130,7 +192,25 @@ function IntegrationCard({
 }) {
   const { integration: int, sync_count, last_sync_status, records_synced } = integration
 
-  const hasDashboard = int.integration_type === 'aws'
+  const hasDashboard = ['aws', 'github', 'jira'].includes(int.integration_type)
+
+  const getDashboardUrl = () => {
+    switch (int.integration_type) {
+      case 'aws': return `/integrations/${int.id}/aws/`
+      case 'github': return `/integrations/${int.id}/github/`
+      case 'jira': return `/integrations/${int.id}/jira/`
+      default: return `/integrations/`
+    }
+  }
+
+  const getDashboardIcon = () => {
+    switch (int.integration_type) {
+      case 'aws': return <Cloud className="mr-2 h-4 w-4" />
+      case 'github': return <GitBranch className="mr-2 h-4 w-4" />
+      case 'jira': return <Kanban className="mr-2 h-4 w-4" />
+      default: return <Activity className="mr-2 h-4 w-4" />
+    }
+  }
 
   return (
     <Card>
@@ -167,8 +247,8 @@ function IntegrationCard({
           <div className="flex flex-wrap gap-2 pt-2">
             {hasDashboard && (
               <Button size="sm" asChild>
-                <Link href={`/integrations/${int.id}/aws/`}>
-                  <Cloud className="mr-2 h-4 w-4" />
+                <Link href={getDashboardUrl()}>
+                  {getDashboardIcon()}
                   Dashboard
                 </Link>
               </Button>
@@ -248,6 +328,16 @@ function AddIntegrationDialog({
   const [selected, setSelected] = useState<AvailableIntegration | null>(selectedType)
   const [name, setName] = useState('')
   const [config, setConfig] = useState<Record<string, string>>({})
+  const [policyOpen, setPolicyOpen] = useState(false)
+  const { toast } = useToast()
+
+  const copyPolicy = () => {
+    navigator.clipboard.writeText(AWS_SAMPLE_POLICY)
+    toast({
+      title: "Copied!",
+      description: "IAM policy copied to clipboard",
+    })
+  }
 
   const createMutation = useMutation(async (data: CreateIntegration) => {
     return apiClient.post('/integrations', data)
@@ -288,6 +378,7 @@ function AddIntegrationDialog({
     setSelected(null)
     setName('')
     setConfig({})
+    setPolicyOpen(false)
   }
 
   const schema = selected?.config_schema as { properties?: Record<string, { title?: string; type?: string; secret?: boolean; placeholder?: string }> } | undefined
@@ -329,6 +420,43 @@ function AddIntegrationDialog({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 py-4">
+            {/* AWS IAM Policy Section */}
+            {selected?.integration_type === 'aws' && (
+              <Collapsible open={policyOpen} onOpenChange={setPolicyOpen}>
+                <div className="border rounded-lg p-3 bg-muted/30">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        <span className="font-medium">AWS IAM Policy Required</span>
+                      </div>
+                      {policyOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Create an IAM user or role with this policy to allow OpenGRC to collect compliance data:
+                    </p>
+                    <div className="relative">
+                      <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
+                        {AWS_SAMPLE_POLICY}
+                      </pre>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="absolute top-2 right-2"
+                        onClick={copyPolicy}
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copy
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="name">Integration Name</Label>
               <Input

@@ -27,7 +27,9 @@ import {
   AlertCircle,
   Lock,
   Eye,
+  FileCheck,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import { useIntegration, useAwsOverview, useMutation } from '@/hooks/use-api'
 import { apiClient } from '@/lib/api-client'
 import { formatDateTime, formatRelativeTime } from '@/types'
@@ -267,6 +269,7 @@ export default function AwsDashboardPage({ params }: { params: Promise<{ id: str
   const integrationId = resolvedParams.id
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('overview')
+  const { toast } = useToast()
 
   const { data: integrationData, isLoading: integrationLoading } = useIntegration(integrationId)
   const { data: overviewData, isLoading: overviewLoading, refetch: refetchOverview } = useAwsOverview(integrationId)
@@ -275,12 +278,34 @@ export default function AwsDashboardPage({ params }: { params: Promise<{ id: str
     return apiClient.post(`/integrations/${id}/sync`, { full_sync: false })
   })
 
+  const collectEvidenceMutation = useMutation(async (id: string) => {
+    return apiClient.post(`/integrations/${id}/collect-evidence`, {})
+  })
+
   const handleSync = async () => {
     try {
       await syncMutation.mutate(integrationId)
       refetchOverview()
     } catch (error) {
       console.error('Sync failed:', error)
+    }
+  }
+
+  const handleCollectEvidence = async () => {
+    try {
+      const result = await collectEvidenceMutation.mutate(integrationId)
+      toast({
+        title: "Evidence Collected",
+        description: `Created ${result.data.evidence_created} evidence records from AWS data.`,
+      })
+      refetchOverview()
+    } catch (error) {
+      console.error('Evidence collection failed:', error)
+      toast({
+        title: "Evidence Collection Failed",
+        description: error instanceof Error ? error.message : "An error occurred while collecting evidence.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -321,6 +346,14 @@ export default function AwsDashboardPage({ params }: { params: Promise<{ id: str
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back
               </Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCollectEvidence}
+              disabled={collectEvidenceMutation.isLoading || integration.integration.status === 'syncing'}
+            >
+              <FileCheck className={`mr-2 h-4 w-4 ${collectEvidenceMutation.isLoading ? 'animate-pulse' : ''}`} />
+              {collectEvidenceMutation.isLoading ? 'Collecting...' : 'Collect Evidence'}
             </Button>
             <Button
               onClick={handleSync}

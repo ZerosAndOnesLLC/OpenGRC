@@ -12,7 +12,7 @@ pub mod vendor;
 
 use sqlx::PgPool;
 use crate::cache::CacheClient;
-use crate::integrations::{AwsProvider, OAuthService};
+use crate::integrations::{AwsProvider, GitHubProvider, JiraProvider, OAuthService};
 use crate::search::SearchClient;
 use crate::storage::StorageClient;
 use crate::utils::EncryptionService;
@@ -74,6 +74,12 @@ impl AppServices {
         // Register integration providers
         integration.register_provider(Box::new(AwsProvider::new())).await;
         tracing::info!("Registered AWS integration provider");
+
+        integration.register_provider(Box::new(GitHubProvider::new())).await;
+        tracing::info!("Registered GitHub integration provider");
+
+        integration.register_provider(Box::new(JiraProvider::new())).await;
+        tracing::info!("Registered Jira integration provider");
 
         // AWS-specific service for querying synced data
         let aws = AwsService::new(db.clone(), cache.clone());

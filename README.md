@@ -13,29 +13,43 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 
 ## Current Status
 
-**Phase 1: Foundation (MVP) - In Progress**
+**Phase 1: Foundation (MVP) - 93% Complete**
 
 - [x] Project scaffolding (Rust API + Next.js UI)
-- [x] Database schema with migrations
+- [x] Database schema with migrations (51 tables)
 - [x] SOC 2 Trust Service Criteria pre-loaded
 - [x] TitaniumVault SSO authentication
 - [x] Multi-tenant architecture
 - [x] Controls management (CRUD + stats)
 - [x] Frameworks & requirements management
-- [x] Evidence management
+- [x] Evidence management with full-text search (Meilisearch)
 - [x] Policy management with versioning
 - [x] Risk register with scoring
-- [x] Vendor management
-- [x] Asset inventory
-- [x] Audit tracking
+- [x] Vendor management with assessments
+- [x] Asset inventory with classification
+- [x] Audit tracking with requests/findings
 - [x] Dashboard with real-time stats
 - [x] Redis caching layer
 - [x] Evidence file uploads to S3 (presigned URLs)
 - [x] Risk heatmap visualization (5x5 matrix)
 - [x] Gap analysis dashboard (framework coverage)
 - [x] Policy templates (25 pre-built compliance policies)
-- [ ] Automated control testing
-- [ ] Report generation
+- [x] Control-to-requirement mapping UI
+- [x] Report generation (CSV export)
+- [ ] PDF export
+- [ ] Custom framework creation
+- [ ] Employee acknowledgment portal UI
+
+**Phase 2: Automation & Integrations - 75% Complete**
+
+- [x] Integration framework with pluggable architecture
+- [x] Credential vault (AES-256-GCM encryption)
+- [x] OAuth2 connection flow with PKCE
+- [x] AWS integration (IAM, CloudTrail, Security Hub, Config, S3, EC2, RDS)
+- [x] AWS evidence generation (manual trigger)
+- [x] AWS sample IAM policy for setup
+- [ ] Identity provider integrations (Okta, Google Workspace, Azure AD)
+- [ ] DevOps integrations (GitHub, Jira)
 
 ## Features
 
