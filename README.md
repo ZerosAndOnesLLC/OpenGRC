@@ -56,18 +56,23 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] Auto-linking evidence to controls via mapping rules
 - [ ] Identity provider integrations (Okta, Google Workspace, Azure AD)
 
-**Phase 3: Vendor & Asset Management - 90% Complete**
+**Phase 3: Vendor, Asset & Access Review Management - 100% Complete**
 
 - [x] Vendor documents management with expiry tracking
 - [x] Security questionnaire builder (templates, sections, questions)
 - [x] Questionnaire assignment workflow (send to vendors, track responses)
 - [x] Vendor portal for questionnaire responses (token-based access)
+- [x] SOC 2 report parser (extract key findings from PDFs)
 - [x] Asset lifecycle tracking (stages, maintenance, end-of-life)
 - [x] Asset integration source tracking (for auto-discovery)
 - [x] Asset auto-discovery from AWS integrations (EC2, RDS, S3)
 - [x] Vendors UI page with stats, filters, create dialog, and detail sheet
 - [x] Assets UI page with lifecycle tracking, control linking, and discovery
-- [ ] SOC 2 report parser for vendors
+- [x] User access review campaigns with integration sync
+- [x] Pull users from Okta, Google Workspace, Azure AD, GitHub
+- [x] Bulk approve/revoke with certification reports
+- [x] Access removal tracking and logging
+- [x] Access Reviews UI page with full workflow
 
 ## Features
 

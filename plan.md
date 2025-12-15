@@ -1357,7 +1357,7 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 - [x] Questionnaire portal for vendors (token-based access)
 - [x] Document collection & expiry tracking (vendor_documents table)
 - [x] Vendor documents API (CRUD operations)
-- [ ] SOC 2 report parser (extract key findings)
+- [x] SOC 2 report parser (extract key findings from PDFs)
 - [x] UI: Vendors page completion
 
 #### 3.2 Asset Management
@@ -1369,13 +1369,15 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 - [x] Auto-discovery from integrations (AWS EC2, RDS, S3)
 - [x] UI: Assets page completion
 
-#### 3.3 User Access Reviews (Partial)
+#### 3.3 User Access Reviews (Complete)
 - [x] Campaign creation wizard (access_review_campaigns table)
-- [ ] Pull users from integrations
+- [x] Pull users from integrations (Okta, Google Workspace, Azure AD, GitHub)
 - [x] Reviewer assignment (reviewer_id field)
 - [x] Bulk approve/revoke interface (access_review_items table)
-- [ ] Certification reports
-- [ ] Access removal tracking
+- [x] Certification reports (JSON + CSV export)
+- [x] Access removal tracking (access_removal_logs table)
+- [x] Risk level and MFA status tracking
+- [x] UI: Access Reviews page with full workflow
 
 #### 3.4 Audit Management (Partial)
 - [x] Audit workspace (audits table)

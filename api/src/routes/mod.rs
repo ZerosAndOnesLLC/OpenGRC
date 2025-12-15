@@ -1,3 +1,4 @@
+pub mod access_reviews;
 pub mod assets;
 pub mod audits;
 pub mod auth;
@@ -16,6 +17,7 @@ pub mod questionnaires;
 pub mod reports;
 pub mod risks;
 pub mod search;
+pub mod soc2;
 pub mod sso;
 pub mod vendors;
 
@@ -275,6 +277,31 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/integrations/:id/aws/rds/instances", get(aws::list_rds_instances))
         .route("/api/v1/integrations/:id/aws/cloudtrail", get(aws::list_cloudtrail_events))
         .route("/api/v1/integrations/:id/aws/cloudtrail/stats", get(aws::get_cloudtrail_stats))
+        // SOC 2 Report Parser routes
+        .route("/api/v1/soc2/reports", get(soc2::get_report_summaries))
+        .route("/api/v1/soc2/reports/:id", get(soc2::get_parsed_report))
+        .route("/api/v1/soc2/reports/:id", delete(soc2::delete_parsed_report))
+        .route("/api/v1/vendors/:vendor_id/soc2/reports", get(soc2::list_vendor_reports))
+        .route("/api/v1/vendors/:vendor_id/documents/:document_id/parse", post(soc2::parse_document))
+        .route("/api/v1/vendors/:vendor_id/documents/:document_id/soc2", get(soc2::get_document_report))
+        // Access Review routes
+        .route("/api/v1/access-reviews/campaigns", get(access_reviews::list_campaigns))
+        .route("/api/v1/access-reviews/campaigns", post(access_reviews::create_campaign))
+        .route("/api/v1/access-reviews/campaigns/:id", get(access_reviews::get_campaign))
+        .route("/api/v1/access-reviews/campaigns/:id", put(access_reviews::update_campaign))
+        .route("/api/v1/access-reviews/campaigns/:id", delete(access_reviews::delete_campaign))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/items", get(access_reviews::list_items))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/items", post(access_reviews::add_items))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/items/:item_id", get(access_reviews::get_item))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/items/:item_id/review", post(access_reviews::review_item))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/items/:item_id/removal", post(access_reviews::request_removal))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/bulk-review", post(access_reviews::bulk_review))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/sync", post(access_reviews::sync_from_integration))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/removal-logs", get(access_reviews::get_removal_logs))
+        .route("/api/v1/access-reviews/removal-logs/:log_id/complete", post(access_reviews::complete_removal))
+        .route("/api/v1/access-reviews/stats", get(access_reviews::get_stats))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/certification", get(access_reviews::get_certification_report))
+        .route("/api/v1/access-reviews/campaigns/:campaign_id/certification/csv", get(access_reviews::download_certification_csv))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

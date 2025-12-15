@@ -471,3 +471,53 @@ export function useAwsCloudTrailStats(integrationId: string) {
     { enabled: !!integrationId }
   )
 }
+
+// Access Review hooks
+export function useAccessReviewCampaigns(query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').CampaignWithStats[]>(`/access-reviews/campaigns${queryString}`)
+}
+
+export function useAccessReviewCampaign(id: string) {
+  return useApi<import('@/types').CampaignWithStats>(`/access-reviews/campaigns/${id}`, {
+    enabled: !!id,
+  })
+}
+
+export function useAccessReviewStats() {
+  return useApi<import('@/types').AccessReviewStats>('/access-reviews/stats')
+}
+
+export function useAccessReviewItems(campaignId: string, query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').AccessReviewItem[]>(
+    `/access-reviews/campaigns/${campaignId}/items${queryString}`,
+    { enabled: !!campaignId }
+  )
+}
+
+export function useAccessRemovalLogs(campaignId: string) {
+  return useApi<import('@/types').AccessRemovalLog[]>(
+    `/access-reviews/campaigns/${campaignId}/removal-logs`,
+    { enabled: !!campaignId }
+  )
+}
+
+export function useAccessReviewCertification(campaignId: string) {
+  return useApi<import('@/types').AccessReviewCertificationReport>(
+    `/access-reviews/campaigns/${campaignId}/certification`,
+    { enabled: !!campaignId }
+  )
+}

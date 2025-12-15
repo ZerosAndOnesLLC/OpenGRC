@@ -1,3 +1,4 @@
+pub mod access_review;
 pub mod asset;
 pub mod audit;
 pub mod aws;
@@ -13,6 +14,7 @@ pub mod policy;
 pub mod questionnaire;
 pub mod reports;
 pub mod risk;
+pub mod soc2_parser;
 pub mod vendor;
 
 use sqlx::PgPool;
@@ -23,6 +25,7 @@ use crate::search::SearchClient;
 use crate::storage::StorageClient;
 use crate::utils::EncryptionService;
 
+pub use access_review::AccessReviewService;
 pub use asset::AssetService;
 pub use audit::AuditService;
 pub use aws::AwsService;
@@ -38,6 +41,7 @@ pub use policy::PolicyService;
 pub use questionnaire::QuestionnaireService;
 pub use reports::ReportsService;
 pub use risk::RiskService;
+pub use soc2_parser::Soc2ParserService;
 pub use vendor::VendorService;
 
 #[derive(Clone)]
@@ -62,6 +66,8 @@ pub struct AppServices {
     pub evidence_automation: EvidenceAutomationService,
     pub control_test_automation: ControlTestAutomationService,
     pub questionnaire: QuestionnaireService,
+    pub soc2_parser: Soc2ParserService,
+    pub access_review: AccessReviewService,
 }
 
 impl AppServices {
@@ -121,6 +127,12 @@ impl AppServices {
         // Questionnaire service
         let questionnaire = QuestionnaireService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire }
+        // SOC 2 parser service
+        let soc2_parser = Soc2ParserService::new(db.clone(), cache.clone());
+
+        // Access review service
+        let access_review = AccessReviewService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review }
     }
 }

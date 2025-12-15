@@ -1,5 +1,6 @@
 use crate::utils::AppResult;
 use chrono::{DateTime, NaiveDate, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -341,5 +342,172 @@ fn escape_csv(s: &str) -> String {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()
+    }
+}
+
+// ==================== Access Review Certification Reports ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct AccessReviewCertificationRow {
+    pub user_identifier: String,
+    pub user_name: Option<String>,
+    pub user_email: Option<String>,
+    pub department: Option<String>,
+    pub review_status: Option<String>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub reviewer_name: Option<String>,
+    pub review_notes: Option<String>,
+    pub risk_level: Option<String>,
+    pub is_admin: Option<bool>,
+    pub mfa_enabled: Option<bool>,
+    pub last_login_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessReviewCertificationReport {
+    pub campaign_name: String,
+    pub campaign_status: Option<String>,
+    pub review_type: Option<String>,
+    pub integration_type: Option<String>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub due_at: Option<DateTime<Utc>>,
+    pub total_items: i64,
+    pub approved_items: i64,
+    pub revoked_items: i64,
+    pub pending_items: i64,
+    pub high_risk_items: i64,
+    pub admin_items: i64,
+    pub items: Vec<AccessReviewCertificationRow>,
+}
+
+impl ReportsService {
+    /// Generate access review certification report
+    pub async fn generate_access_review_certification(
+        &self,
+        org_id: Uuid,
+        campaign_id: Uuid,
+    ) -> AppResult<AccessReviewCertificationReport> {
+        // Get campaign info
+        let campaign: (String, Option<String>, Option<String>, Option<String>, Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<DateTime<Utc>>) = sqlx::query_as(
+            r#"
+            SELECT name, status, review_type, integration_type, started_at, completed_at, due_at
+            FROM access_review_campaigns
+            WHERE id = $1 AND organization_id = $2
+            "#,
+        )
+        .bind(campaign_id)
+        .bind(org_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        // Get items with reviewer info
+        let items: Vec<AccessReviewCertificationRow> = sqlx::query_as(
+            r#"
+            SELECT
+                ari.user_identifier,
+                ari.user_name,
+                ari.user_email,
+                ari.department,
+                ari.review_status,
+                ari.reviewed_at,
+                u.email as reviewer_name,
+                ari.review_notes,
+                ari.risk_level,
+                ari.is_admin,
+                ari.mfa_enabled,
+                ari.last_login_at
+            FROM access_review_items ari
+            LEFT JOIN users u ON ari.reviewer_id = u.id
+            WHERE ari.campaign_id = $1
+            ORDER BY
+                CASE ari.review_status WHEN 'revoked' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END,
+                CASE ari.risk_level WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+                ari.user_name ASC
+            "#,
+        )
+        .bind(campaign_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        // Calculate stats
+        let total = items.len() as i64;
+        let approved = items.iter().filter(|i| i.review_status.as_deref() == Some("approved")).count() as i64;
+        let revoked = items.iter().filter(|i| i.review_status.as_deref() == Some("revoked")).count() as i64;
+        let pending = items.iter().filter(|i| i.review_status.is_none() || i.review_status.as_deref() == Some("pending")).count() as i64;
+        let high_risk = items.iter().filter(|i| i.risk_level.as_deref() == Some("high")).count() as i64;
+        let admin = items.iter().filter(|i| i.is_admin == Some(true)).count() as i64;
+
+        Ok(AccessReviewCertificationReport {
+            campaign_name: campaign.0,
+            campaign_status: campaign.1,
+            review_type: campaign.2,
+            integration_type: campaign.3,
+            started_at: campaign.4,
+            completed_at: campaign.5,
+            due_at: campaign.6,
+            total_items: total,
+            approved_items: approved,
+            revoked_items: revoked,
+            pending_items: pending,
+            high_risk_items: high_risk,
+            admin_items: admin,
+            items,
+        })
+    }
+
+    /// Generate access review certification report as CSV
+    pub async fn generate_access_review_csv(
+        &self,
+        org_id: Uuid,
+        campaign_id: Uuid,
+    ) -> AppResult<String> {
+        let report = self.generate_access_review_certification(org_id, campaign_id).await?;
+
+        let mut csv = String::new();
+
+        // Header info
+        csv.push_str(&format!("Access Review Certification Report: {}\n", report.campaign_name));
+        csv.push_str(&format!("Status: {}\n", report.campaign_status.as_deref().unwrap_or("-")));
+        csv.push_str(&format!("Review Type: {}\n", report.review_type.as_deref().unwrap_or("-")));
+        if let Some(started) = report.started_at {
+            csv.push_str(&format!("Started: {}\n", started.format("%Y-%m-%d %H:%M UTC")));
+        }
+        if let Some(completed) = report.completed_at {
+            csv.push_str(&format!("Completed: {}\n", completed.format("%Y-%m-%d %H:%M UTC")));
+        }
+        csv.push('\n');
+
+        // Summary
+        csv.push_str("Summary\n");
+        csv.push_str(&format!("Total Users,{}\n", report.total_items));
+        csv.push_str(&format!("Approved,{}\n", report.approved_items));
+        csv.push_str(&format!("Revoked,{}\n", report.revoked_items));
+        csv.push_str(&format!("Pending,{}\n", report.pending_items));
+        csv.push_str(&format!("High Risk,{}\n", report.high_risk_items));
+        csv.push_str(&format!("Admin Users,{}\n", report.admin_items));
+        csv.push('\n');
+
+        // Detail rows
+        csv.push_str("User Identifier,User Name,Email,Department,Risk Level,Admin,MFA,Last Login,Decision,Reviewed At,Reviewer,Notes\n");
+        for item in &report.items {
+            csv.push_str(&format!(
+                "{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                escape_csv(&item.user_identifier),
+                item.user_name.as_deref().map(escape_csv).unwrap_or_else(|| "-".to_string()),
+                item.user_email.as_deref().map(escape_csv).unwrap_or_else(|| "-".to_string()),
+                item.department.as_deref().unwrap_or("-"),
+                item.risk_level.as_deref().unwrap_or("-"),
+                if item.is_admin == Some(true) { "Yes" } else { "No" },
+                if item.mfa_enabled == Some(true) { "Yes" } else { "No" },
+                item.last_login_at.map_or("-".to_string(), |d| d.format("%Y-%m-%d").to_string()),
+                item.review_status.as_deref().unwrap_or("pending"),
+                item.reviewed_at.map_or("-".to_string(), |d| d.format("%Y-%m-%d %H:%M").to_string()),
+                item.reviewer_name.as_deref().map(escape_csv).unwrap_or_else(|| "-".to_string()),
+                item.review_notes.as_deref().map(escape_csv).unwrap_or_else(|| "".to_string()),
+            ));
+        }
+
+        Ok(csv)
     }
 }

@@ -1288,6 +1288,185 @@ export interface AwsPaginatedResponse<T> {
   offset: number
 }
 
+// ==================== Access Reviews ====================
+
+export type AccessReviewStatus = 'draft' | 'active' | 'completed' | 'cancelled'
+export type ReviewDecisionStatus = 'pending' | 'approved' | 'revoked' | 'flagged'
+export type AccessRemovalStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
+
+export interface AccessReviewCampaign {
+  id: string
+  organization_id: string
+  name: string
+  description: string | null
+  status: string | null
+  started_at: string | null
+  due_at: string | null
+  completed_at: string | null
+  created_by: string | null
+  created_at: string
+  integration_type: string | null
+  integration_id: string | null
+  scope: Record<string, unknown> | null
+  review_type: string | null
+  reminder_sent_at: string | null
+  last_sync_at: string | null
+}
+
+export interface CampaignWithStats extends AccessReviewCampaign {
+  total_items: number
+  pending_items: number
+  approved_items: number
+  revoked_items: number
+}
+
+export interface AccessReviewItem {
+  id: string
+  campaign_id: string
+  user_identifier: string
+  user_name: string | null
+  user_email: string | null
+  access_details: Record<string, unknown> | null
+  reviewer_id: string | null
+  review_status: string | null
+  reviewed_at: string | null
+  review_notes: string | null
+  created_at: string
+  integration_user_id: string | null
+  department: string | null
+  manager: string | null
+  last_login_at: string | null
+  risk_level: string | null
+  mfa_enabled: boolean | null
+  is_admin: boolean | null
+  applications: Record<string, unknown>[] | null
+  removal_requested_at: string | null
+  removal_completed_at: string | null
+  removal_ticket_id: string | null
+}
+
+export interface AccessRemovalLog {
+  id: string
+  access_review_item_id: string
+  campaign_id: string
+  organization_id: string
+  user_identifier: string
+  user_name: string | null
+  access_type: string | null
+  access_description: string | null
+  action: string
+  action_reason: string | null
+  requested_by: string | null
+  requested_at: string
+  executed_by: string | null
+  executed_at: string | null
+  status: string | null
+  error_message: string | null
+  external_ticket_id: string | null
+  external_ticket_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAccessReviewCampaign {
+  name: string
+  description?: string
+  due_at?: string
+  integration_type?: string
+  integration_id?: string
+  scope?: Record<string, unknown>
+  review_type?: string
+}
+
+export interface UpdateAccessReviewCampaign {
+  name?: string
+  description?: string
+  status?: string
+  due_at?: string
+}
+
+export interface CreateAccessReviewItem {
+  user_identifier: string
+  user_name?: string
+  user_email?: string
+  access_details?: Record<string, unknown>
+  integration_user_id?: string
+  department?: string
+  manager?: string
+  last_login_at?: string
+  risk_level?: string
+  mfa_enabled?: boolean
+  is_admin?: boolean
+  applications?: Record<string, unknown>[]
+}
+
+export interface ReviewDecision {
+  status: ReviewDecisionStatus
+  notes?: string
+}
+
+export interface BulkReviewDecision {
+  item_ids: string[]
+  status: ReviewDecisionStatus
+  notes?: string
+}
+
+export interface RequestRemoval {
+  access_type?: string
+  access_description?: string
+  action: string
+  action_reason?: string
+  external_ticket_id?: string
+  external_ticket_url?: string
+}
+
+export interface AccessReviewStats {
+  total_campaigns: number
+  active_campaigns: number
+  completed_campaigns: number
+  total_items: number
+  pending_reviews: number
+  approved_accesses: number
+  revoked_accesses: number
+  pending_removals: number
+  completed_removals: number
+  high_risk_users: number
+  admin_users: number
+  users_without_mfa: number
+}
+
+export interface AccessReviewCertificationReport {
+  campaign_name: string
+  campaign_status: string | null
+  review_type: string | null
+  integration_type: string | null
+  started_at: string | null
+  completed_at: string | null
+  due_at: string | null
+  total_items: number
+  approved_items: number
+  revoked_items: number
+  pending_items: number
+  high_risk_items: number
+  admin_items: number
+  items: AccessReviewCertificationRow[]
+}
+
+export interface AccessReviewCertificationRow {
+  user_identifier: string
+  user_name: string | null
+  user_email: string | null
+  department: string | null
+  review_status: string | null
+  reviewed_at: string | null
+  reviewer_name: string | null
+  review_notes: string | null
+  risk_level: string | null
+  is_admin: boolean | null
+  mfa_enabled: boolean | null
+  last_login_at: string | null
+}
+
 // ==================== Dashboard ====================
 
 export interface DashboardStats {
