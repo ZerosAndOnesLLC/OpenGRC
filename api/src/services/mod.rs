@@ -10,6 +10,7 @@ pub mod integration;
 pub mod notification;
 pub mod pdf;
 pub mod policy;
+pub mod questionnaire;
 pub mod reports;
 pub mod risk;
 pub mod vendor;
@@ -34,6 +35,7 @@ pub use integration::IntegrationService;
 pub use notification::NotificationService;
 pub use pdf::PdfService;
 pub use policy::PolicyService;
+pub use questionnaire::QuestionnaireService;
 pub use reports::ReportsService;
 pub use risk::RiskService;
 pub use vendor::VendorService;
@@ -59,6 +61,7 @@ pub struct AppServices {
     pub aws: AwsService,
     pub evidence_automation: EvidenceAutomationService,
     pub control_test_automation: ControlTestAutomationService,
+    pub questionnaire: QuestionnaireService,
 }
 
 impl AppServices {
@@ -115,6 +118,9 @@ impl AppServices {
         // Control test automation service
         let control_test_automation = ControlTestAutomationService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation }
+        // Questionnaire service
+        let questionnaire = QuestionnaireService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire }
     }
 }

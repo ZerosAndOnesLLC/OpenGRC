@@ -1,7 +1,8 @@
 use crate::cache::{org_cache_key, CacheClient};
 use crate::models::{
-    CreateVendor, CreateVendorAssessment, CriticalityCount, ListVendorsQuery, UpdateVendor,
-    Vendor, VendorAssessment, VendorCategoryCount, VendorStats, VendorWithAssessment,
+    CreateVendor, CreateVendorAssessment, CreateVendorDocument, CriticalityCount,
+    ListVendorsQuery, UpdateVendor, UpdateVendorDocument, Vendor, VendorAssessment,
+    VendorCategoryCount, VendorDocument, VendorStats, VendorWithAssessment,
 };
 use crate::utils::{AppError, AppResult};
 use sqlx::PgPool;
@@ -365,6 +366,220 @@ impl VendorService {
         .await?;
 
         Ok(assessments)
+    }
+
+    // ==================== Documents ====================
+
+    /// List documents for a vendor
+    pub async fn list_documents(
+        &self,
+        org_id: Uuid,
+        vendor_id: Uuid,
+    ) -> AppResult<Vec<VendorDocument>> {
+        // Verify vendor exists
+        self.get_vendor(org_id, vendor_id).await?;
+
+        let documents = sqlx::query_as::<_, VendorDocument>(
+            r#"
+            SELECT id, vendor_id, document_type, title, file_path,
+                   valid_from, valid_until, uploaded_by, created_at
+            FROM vendor_documents
+            WHERE vendor_id = $1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(vendor_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(documents)
+    }
+
+    /// Get a single document
+    pub async fn get_document(
+        &self,
+        org_id: Uuid,
+        vendor_id: Uuid,
+        document_id: Uuid,
+    ) -> AppResult<VendorDocument> {
+        // Verify vendor exists
+        self.get_vendor(org_id, vendor_id).await?;
+
+        let document = sqlx::query_as::<_, VendorDocument>(
+            r#"
+            SELECT id, vendor_id, document_type, title, file_path,
+                   valid_from, valid_until, uploaded_by, created_at
+            FROM vendor_documents
+            WHERE id = $1 AND vendor_id = $2
+            "#,
+        )
+        .bind(document_id)
+        .bind(vendor_id)
+        .fetch_optional(&self.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("Document {} not found", document_id)))?;
+
+        Ok(document)
+    }
+
+    /// Create a vendor document
+    pub async fn create_document(
+        &self,
+        org_id: Uuid,
+        vendor_id: Uuid,
+        user_id: Option<Uuid>,
+        input: CreateVendorDocument,
+    ) -> AppResult<VendorDocument> {
+        // Verify vendor exists
+        self.get_vendor(org_id, vendor_id).await?;
+
+        if input.title.trim().is_empty() {
+            return Err(AppError::ValidationError(
+                "Document title is required".to_string(),
+            ));
+        }
+
+        let document = sqlx::query_as::<_, VendorDocument>(
+            r#"
+            INSERT INTO vendor_documents (vendor_id, document_type, title, valid_from, valid_until, uploaded_by)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, vendor_id, document_type, title, file_path,
+                      valid_from, valid_until, uploaded_by, created_at
+            "#,
+        )
+        .bind(vendor_id)
+        .bind(&input.document_type)
+        .bind(&input.title)
+        .bind(input.valid_from)
+        .bind(input.valid_until)
+        .bind(user_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        tracing::info!(
+            "Created document for vendor {}: {}",
+            vendor_id,
+            document.id
+        );
+
+        Ok(document)
+    }
+
+    /// Update a vendor document
+    pub async fn update_document(
+        &self,
+        org_id: Uuid,
+        vendor_id: Uuid,
+        document_id: Uuid,
+        input: UpdateVendorDocument,
+    ) -> AppResult<VendorDocument> {
+        // Verify document exists
+        self.get_document(org_id, vendor_id, document_id).await?;
+
+        let document = sqlx::query_as::<_, VendorDocument>(
+            r#"
+            UPDATE vendor_documents
+            SET
+                document_type = COALESCE($3, document_type),
+                title = COALESCE($4, title),
+                valid_from = COALESCE($5, valid_from),
+                valid_until = COALESCE($6, valid_until)
+            WHERE id = $1 AND vendor_id = $2
+            RETURNING id, vendor_id, document_type, title, file_path,
+                      valid_from, valid_until, uploaded_by, created_at
+            "#,
+        )
+        .bind(document_id)
+        .bind(vendor_id)
+        .bind(&input.document_type)
+        .bind(&input.title)
+        .bind(input.valid_from)
+        .bind(input.valid_until)
+        .fetch_one(&self.db)
+        .await?;
+
+        tracing::info!("Updated document: {}", document_id);
+
+        Ok(document)
+    }
+
+    /// Update document file path (after upload)
+    pub async fn update_document_file(
+        &self,
+        org_id: Uuid,
+        vendor_id: Uuid,
+        document_id: Uuid,
+        file_path: &str,
+    ) -> AppResult<VendorDocument> {
+        // Verify document exists
+        self.get_document(org_id, vendor_id, document_id).await?;
+
+        let document = sqlx::query_as::<_, VendorDocument>(
+            r#"
+            UPDATE vendor_documents
+            SET file_path = $3
+            WHERE id = $1 AND vendor_id = $2
+            RETURNING id, vendor_id, document_type, title, file_path,
+                      valid_from, valid_until, uploaded_by, created_at
+            "#,
+        )
+        .bind(document_id)
+        .bind(vendor_id)
+        .bind(file_path)
+        .fetch_one(&self.db)
+        .await?;
+
+        tracing::info!("Updated document file path: {}", document_id);
+
+        Ok(document)
+    }
+
+    /// Delete a vendor document
+    pub async fn delete_document(
+        &self,
+        org_id: Uuid,
+        vendor_id: Uuid,
+        document_id: Uuid,
+    ) -> AppResult<()> {
+        // Verify document exists
+        self.get_document(org_id, vendor_id, document_id).await?;
+
+        sqlx::query("DELETE FROM vendor_documents WHERE id = $1 AND vendor_id = $2")
+            .bind(document_id)
+            .bind(vendor_id)
+            .execute(&self.db)
+            .await?;
+
+        tracing::info!("Deleted document: {}", document_id);
+
+        Ok(())
+    }
+
+    /// Get documents expiring soon
+    pub async fn get_expiring_documents(
+        &self,
+        org_id: Uuid,
+        days: i64,
+    ) -> AppResult<Vec<VendorDocument>> {
+        let documents = sqlx::query_as::<_, VendorDocument>(
+            r#"
+            SELECT vd.id, vd.vendor_id, vd.document_type, vd.title, vd.file_path,
+                   vd.valid_from, vd.valid_until, vd.uploaded_by, vd.created_at
+            FROM vendor_documents vd
+            JOIN vendors v ON vd.vendor_id = v.id
+            WHERE v.organization_id = $1
+              AND vd.valid_until IS NOT NULL
+              AND vd.valid_until <= CURRENT_DATE + ($2 || ' days')::interval
+              AND vd.valid_until >= CURRENT_DATE
+            ORDER BY vd.valid_until ASC
+            "#,
+        )
+        .bind(org_id)
+        .bind(days)
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(documents)
     }
 
     // ==================== Statistics ====================

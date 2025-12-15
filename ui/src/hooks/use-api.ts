@@ -181,8 +181,21 @@ export function useVendors(query?: Record<string, string | number | boolean>) {
   return useApi<import('@/types').VendorWithAssessment[]>(`/vendors${queryString}`)
 }
 
+export function useVendor(id: string) {
+  return useApi<import('@/types').VendorWithAssessment>(`/vendors/${id}`, {
+    enabled: !!id,
+  })
+}
+
 export function useVendorStats() {
   return useApi<import('@/types').VendorStats>('/vendors/stats')
+}
+
+export function useVendorAssessments(vendorId: string) {
+  return useApi<import('@/types').VendorAssessment[]>(
+    `/vendors/${vendorId}/assessments`,
+    { enabled: !!vendorId }
+  )
 }
 
 export function useAssets(query?: Record<string, string | number | boolean>) {
@@ -194,6 +207,12 @@ export function useAssets(query?: Record<string, string | number | boolean>) {
       ).toString()
     : ''
   return useApi<import('@/types').AssetWithControls[]>(`/assets${queryString}`)
+}
+
+export function useAsset(id: string) {
+  return useApi<import('@/types').AssetWithControls>(`/assets/${id}`, {
+    enabled: !!id,
+  })
 }
 
 export function useAssetStats() {

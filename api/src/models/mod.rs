@@ -5,6 +5,7 @@ pub mod evidence;
 pub mod framework;
 pub mod integration;
 pub mod policy;
+pub mod questionnaire;
 pub mod risk;
 pub mod vendor;
 
@@ -75,11 +76,13 @@ pub use risk::{
 pub use vendor::{
     Vendor, VendorWithAssessment, VendorAssessment, CreateVendor, UpdateVendor,
     CreateVendorAssessment, ListVendorsQuery, VendorStats, CriticalityCount, VendorCategoryCount,
+    VendorDocument, CreateVendorDocument, UpdateVendorDocument,
 };
 
 pub use asset::{
     Asset, AssetWithControls, AssetControlMapping, CreateAsset, UpdateAsset,
     ListAssetsQuery, AssetStats, AssetTypeCount, ClassificationCount, AssetStatusCount,
+    LifecycleStageCount, AssetLifecycleEvent, CreateLifecycleEvent, DiscoveredAsset,
 };
 
 pub use audit::{
@@ -101,4 +104,16 @@ pub use integration::{
     OAuthCallbackParams, OAuthTokenResponse, OAuthRefreshRequest, OAuthProviderConfig,
     // Error handling and retry types
     SyncErrorCategory, CircuitBreakerState,
+};
+
+pub use questionnaire::{
+    QuestionnaireTemplate, QuestionnaireTemplateWithDetails, CreateQuestionnaireTemplate,
+    UpdateQuestionnaireTemplate, QuestionnaireSection, QuestionnaireSectionWithQuestions,
+    CreateQuestionnaireSection, UpdateQuestionnaireSection, QuestionnaireQuestion,
+    CreateQuestionnaireQuestion, UpdateQuestionnaireQuestion, QuestionnaireAssignment,
+    QuestionnaireAssignmentWithDetails, CreateQuestionnaireAssignment,
+    ReviewQuestionnaireAssignment, ListQuestionnaireAssignmentsQuery, QuestionnaireResponse,
+    QuestionnaireResponseWithQuestion, SaveQuestionnaireResponse, BulkSaveQuestionnaireResponses,
+    QuestionnaireResponseComment, CreateResponseComment, VendorPortalAccess,
+    VendorPortalSubmission, QuestionnaireStats,
 };

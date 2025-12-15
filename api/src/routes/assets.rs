@@ -29,8 +29,11 @@ pub struct ListAssetsParams {
     pub category: Option<String>,
     pub classification: Option<String>,
     pub status: Option<String>,
+    pub lifecycle_stage: Option<String>,
+    pub integration_source: Option<String>,
     pub owner_id: Option<Uuid>,
     pub search: Option<String>,
+    pub maintenance_due: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -42,8 +45,11 @@ impl From<ListAssetsParams> for ListAssetsQuery {
             category: params.category,
             classification: params.classification,
             status: params.status,
+            lifecycle_stage: params.lifecycle_stage,
+            integration_source: params.integration_source,
             owner_id: params.owner_id,
             search: params.search,
+            maintenance_due: params.maintenance_due,
             limit: params.limit,
             offset: params.offset,
         }
@@ -147,4 +153,19 @@ pub async fn unlink_controls(
         .unlink_controls(org_id, id, input.control_ids)
         .await?;
     Ok(Json(deleted))
+}
+
+// ==================== Asset Discovery ====================
+
+pub async fn discover_assets(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(integration_id): Path<Uuid>,
+) -> AppResult<Json<crate::services::asset::AssetDiscoveryResult>> {
+    let org_id = get_org_id(&user)?;
+    let result = services
+        .asset
+        .discover_assets_from_aws(org_id, integration_id)
+        .await?;
+    Ok(Json(result))
 }

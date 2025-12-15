@@ -620,10 +620,10 @@ export interface Asset {
   organization_id: string
   name: string
   description: string | null
-  asset_type: string
+  asset_type: string | null
   category: string | null
   classification: string | null
-  status: string
+  status: string | null
   owner_id: string | null
   custodian_id: string | null
   location: string | null
@@ -634,6 +634,20 @@ export interface Asset {
   metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
+  // Lifecycle tracking fields
+  lifecycle_stage: string | null
+  commissioned_date: string | null
+  decommission_date: string | null
+  last_maintenance_date: string | null
+  next_maintenance_due: string | null
+  maintenance_frequency: string | null
+  end_of_life_date: string | null
+  end_of_support_date: string | null
+  // Integration tracking fields
+  integration_source: string | null
+  integration_id: string | null
+  external_id: string | null
+  last_synced_at: string | null
 }
 
 export interface AssetWithControls extends Asset {
@@ -644,7 +658,7 @@ export interface AssetWithControls extends Asset {
 export interface CreateAsset {
   name: string
   description?: string
-  asset_type: AssetType
+  asset_type?: AssetType
   category?: string
   classification?: AssetClassification
   status?: AssetStatus
@@ -656,6 +670,12 @@ export interface CreateAsset {
   purchase_date?: string
   warranty_until?: string
   metadata?: Record<string, unknown>
+  // Lifecycle fields
+  lifecycle_stage?: string
+  commissioned_date?: string
+  maintenance_frequency?: string
+  end_of_life_date?: string
+  end_of_support_date?: string
 }
 
 export interface UpdateAsset {
@@ -673,6 +693,15 @@ export interface UpdateAsset {
   purchase_date?: string
   warranty_until?: string
   metadata?: Record<string, unknown>
+  // Lifecycle fields
+  lifecycle_stage?: string
+  commissioned_date?: string
+  decommission_date?: string
+  last_maintenance_date?: string
+  next_maintenance_due?: string
+  maintenance_frequency?: string
+  end_of_life_date?: string
+  end_of_support_date?: string
 }
 
 export interface ListAssetsQuery {
@@ -687,11 +716,13 @@ export interface ListAssetsQuery {
 
 export interface AssetStats {
   total: number
-  by_type: { asset_type: string; count: number }[]
+  by_type: { asset_type: string | null; count: number }[]
   by_classification: { classification: string | null; count: number }[]
-  by_status: { status: string; count: number }[]
-  active: number
-  warranty_expiring: number
+  by_status: { status: string | null; count: number }[]
+  by_lifecycle_stage: { lifecycle_stage: string | null; count: number }[]
+  warranty_expiring_soon: number
+  maintenance_due_soon: number
+  from_integrations: number
 }
 
 // ==================== Audit ====================

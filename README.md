@@ -56,6 +56,19 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - [x] Auto-linking evidence to controls via mapping rules
 - [ ] Identity provider integrations (Okta, Google Workspace, Azure AD)
 
+**Phase 3: Vendor & Asset Management - 90% Complete**
+
+- [x] Vendor documents management with expiry tracking
+- [x] Security questionnaire builder (templates, sections, questions)
+- [x] Questionnaire assignment workflow (send to vendors, track responses)
+- [x] Vendor portal for questionnaire responses (token-based access)
+- [x] Asset lifecycle tracking (stages, maintenance, end-of-life)
+- [x] Asset integration source tracking (for auto-discovery)
+- [x] Asset auto-discovery from AWS integrations (EC2, RDS, S3)
+- [x] Vendors UI page with stats, filters, create dialog, and detail sheet
+- [x] Assets UI page with lifecycle tracking, control linking, and discovery
+- [ ] SOC 2 report parser for vendors
+
 ## Features
 
 - **Multi-Framework Support** - SOC 2, ISO 27001, HIPAA, PCI DSS, GDPR, NIST CSF
@@ -67,7 +80,10 @@ Open-source Governance, Risk, and Compliance (GRC) platform. Get SOC 2, ISO 2700
 - **Risk Register** - Track and treat risks with scoring matrices
 - **Risk Heatmap** - Interactive 5x5 likelihood/impact matrix visualization
 - **Gap Analysis** - Framework coverage dashboard with per-category breakdown
-- **Vendor Management** - Assess and monitor third-party risk
+- **Vendor Management** - Assess and monitor third-party risk with documents and questionnaires
+- **Security Questionnaires** - Build and send security questionnaires to vendors with scoring
+- **Vendor Portal** - External portal for vendors to complete questionnaires
+- **Asset Lifecycle** - Track assets through procurement to decommissioning
 - **Access Reviews** - Periodic user access certification campaigns
 - **Audit Portal** - Collaborate with external auditors seamlessly
 - **PDF Reports** - Branded PDF exports with headers, footers, and summary charts

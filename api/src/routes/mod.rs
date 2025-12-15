@@ -12,6 +12,7 @@ pub mod integrations;
 pub mod notifications;
 pub mod policies;
 pub mod policy_templates;
+pub mod questionnaires;
 pub mod reports;
 pub mod risks;
 pub mod search;
@@ -65,6 +66,10 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/policy-templates/:id", get(policy_templates::get_policy_template))
         // OAuth callback - must be public since it's called by OAuth providers
         .route("/api/v1/integrations/oauth/callback", get(integrations::oauth_callback))
+        // Vendor portal routes (public, token-based access)
+        .route("/api/v1/vendor-portal", get(questionnaires::get_portal_access))
+        .route("/api/v1/vendor-portal/response", post(questionnaires::save_portal_response))
+        .route("/api/v1/vendor-portal/submit", post(questionnaires::submit_portal_questionnaire))
         .with_state(services.clone());
 
     // SSO routes - no auth middleware (used to establish authentication)
@@ -127,6 +132,31 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/vendors/:id", delete(vendors::delete_vendor))
         .route("/api/v1/vendors/:id/assessments", get(vendors::get_assessments))
         .route("/api/v1/vendors/:id/assessments", post(vendors::create_assessment))
+        .route("/api/v1/vendors/:id/documents", get(vendors::list_documents))
+        .route("/api/v1/vendors/:id/documents", post(vendors::create_document))
+        .route("/api/v1/vendors/:vendor_id/documents/:document_id", get(vendors::get_document))
+        .route("/api/v1/vendors/:vendor_id/documents/:document_id", put(vendors::update_document))
+        .route("/api/v1/vendors/:vendor_id/documents/:document_id", delete(vendors::delete_document))
+        .route("/api/v1/vendors/documents/expiring", get(vendors::get_expiring_documents))
+        // Questionnaire routes
+        .route("/api/v1/questionnaires/templates", get(questionnaires::list_templates))
+        .route("/api/v1/questionnaires/templates", post(questionnaires::create_template))
+        .route("/api/v1/questionnaires/templates/:id", get(questionnaires::get_template))
+        .route("/api/v1/questionnaires/templates/:id", put(questionnaires::update_template))
+        .route("/api/v1/questionnaires/templates/:id", delete(questionnaires::delete_template))
+        .route("/api/v1/questionnaires/templates/:id/publish", post(questionnaires::publish_template))
+        .route("/api/v1/questionnaires/templates/:template_id/sections", post(questionnaires::create_section))
+        .route("/api/v1/questionnaires/templates/:template_id/sections/:section_id", put(questionnaires::update_section))
+        .route("/api/v1/questionnaires/templates/:template_id/sections/:section_id", delete(questionnaires::delete_section))
+        .route("/api/v1/questionnaires/templates/:template_id/questions", post(questionnaires::create_question))
+        .route("/api/v1/questionnaires/templates/:template_id/questions/:question_id", put(questionnaires::update_question))
+        .route("/api/v1/questionnaires/templates/:template_id/questions/:question_id", delete(questionnaires::delete_question))
+        .route("/api/v1/questionnaires/assignments", get(questionnaires::list_assignments))
+        .route("/api/v1/questionnaires/assignments", post(questionnaires::create_assignment))
+        .route("/api/v1/questionnaires/assignments/:id", get(questionnaires::get_assignment))
+        .route("/api/v1/questionnaires/assignments/:id/review", post(questionnaires::review_assignment))
+        .route("/api/v1/questionnaires/assignments/:id", delete(questionnaires::delete_assignment))
+        .route("/api/v1/questionnaires/stats", get(questionnaires::get_stats))
         .route("/api/v1/assets", get(assets::list_assets))
         .route("/api/v1/assets/stats", get(assets::get_asset_stats))
         .route("/api/v1/assets/:id", get(assets::get_asset))
@@ -135,6 +165,7 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/assets/:id", delete(assets::delete_asset))
         .route("/api/v1/assets/:id/controls", post(assets::link_controls))
         .route("/api/v1/assets/:id/controls", delete(assets::unlink_controls))
+        .route("/api/v1/assets/discover/:integration_id", post(assets::discover_assets))
         .route("/api/v1/audits", get(audits::list_audits))
         .route("/api/v1/audits/stats", get(audits::get_audit_stats))
         .route("/api/v1/audits/:id", get(audits::get_audit))

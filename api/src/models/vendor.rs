@@ -155,6 +155,38 @@ pub struct VendorCategoryCount {
     pub count: i64,
 }
 
+/// Vendor document
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct VendorDocument {
+    pub id: Uuid,
+    pub vendor_id: Uuid,
+    pub document_type: Option<String>,
+    pub title: String,
+    pub file_path: Option<String>,
+    pub valid_from: Option<NaiveDate>,
+    pub valid_until: Option<NaiveDate>,
+    pub uploaded_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Create vendor document request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateVendorDocument {
+    pub document_type: Option<String>,
+    pub title: String,
+    pub valid_from: Option<NaiveDate>,
+    pub valid_until: Option<NaiveDate>,
+}
+
+/// Update vendor document request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateVendorDocument {
+    pub document_type: Option<String>,
+    pub title: Option<String>,
+    pub valid_from: Option<NaiveDate>,
+    pub valid_until: Option<NaiveDate>,
+}
+
 impl Vendor {
     pub fn validate_create(input: &CreateVendor) -> Result<(), String> {
         if input.name.trim().is_empty() {

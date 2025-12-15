@@ -50,6 +50,24 @@ impl Default for AssetStatus {
     }
 }
 
+/// Asset lifecycle stages
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AssetLifecycleStage {
+    Procurement,
+    Deployment,
+    Active,
+    Maintenance,
+    Decommissioning,
+    Decommissioned,
+}
+
+impl Default for AssetLifecycleStage {
+    fn default() -> Self {
+        Self::Active
+    }
+}
+
 /// Asset entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Asset {
@@ -71,6 +89,20 @@ pub struct Asset {
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // Lifecycle tracking fields
+    pub lifecycle_stage: Option<String>,
+    pub commissioned_date: Option<NaiveDate>,
+    pub decommission_date: Option<NaiveDate>,
+    pub last_maintenance_date: Option<NaiveDate>,
+    pub next_maintenance_due: Option<NaiveDate>,
+    pub maintenance_frequency: Option<String>,
+    pub end_of_life_date: Option<NaiveDate>,
+    pub end_of_support_date: Option<NaiveDate>,
+    // Integration tracking fields
+    pub integration_source: Option<String>,
+    pub integration_id: Option<Uuid>,
+    pub external_id: Option<String>,
+    pub last_synced_at: Option<DateTime<Utc>>,
 }
 
 /// Asset with control mappings
@@ -106,6 +138,12 @@ pub struct CreateAsset {
     pub purchase_date: Option<NaiveDate>,
     pub warranty_until: Option<NaiveDate>,
     pub metadata: Option<serde_json::Value>,
+    // Lifecycle fields
+    pub lifecycle_stage: Option<String>,
+    pub commissioned_date: Option<NaiveDate>,
+    pub maintenance_frequency: Option<String>,
+    pub end_of_life_date: Option<NaiveDate>,
+    pub end_of_support_date: Option<NaiveDate>,
 }
 
 /// Update asset request
@@ -125,6 +163,15 @@ pub struct UpdateAsset {
     pub purchase_date: Option<NaiveDate>,
     pub warranty_until: Option<NaiveDate>,
     pub metadata: Option<serde_json::Value>,
+    // Lifecycle fields
+    pub lifecycle_stage: Option<String>,
+    pub commissioned_date: Option<NaiveDate>,
+    pub decommission_date: Option<NaiveDate>,
+    pub last_maintenance_date: Option<NaiveDate>,
+    pub next_maintenance_due: Option<NaiveDate>,
+    pub maintenance_frequency: Option<String>,
+    pub end_of_life_date: Option<NaiveDate>,
+    pub end_of_support_date: Option<NaiveDate>,
 }
 
 /// List assets query
@@ -134,8 +181,11 @@ pub struct ListAssetsQuery {
     pub category: Option<String>,
     pub classification: Option<String>,
     pub status: Option<String>,
+    pub lifecycle_stage: Option<String>,
+    pub integration_source: Option<String>,
     pub owner_id: Option<Uuid>,
     pub search: Option<String>,
+    pub maintenance_due: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -147,7 +197,10 @@ pub struct AssetStats {
     pub by_type: Vec<AssetTypeCount>,
     pub by_classification: Vec<ClassificationCount>,
     pub by_status: Vec<AssetStatusCount>,
+    pub by_lifecycle_stage: Vec<LifecycleStageCount>,
     pub warranty_expiring_soon: i64,
+    pub maintenance_due_soon: i64,
+    pub from_integrations: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -166,6 +219,47 @@ pub struct ClassificationCount {
 pub struct AssetStatusCount {
     pub status: Option<String>,
     pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct LifecycleStageCount {
+    pub lifecycle_stage: Option<String>,
+    pub count: i64,
+}
+
+/// Asset lifecycle event (audit trail)
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct AssetLifecycleEvent {
+    pub id: Uuid,
+    pub asset_id: Uuid,
+    pub event_type: String,
+    pub previous_stage: Option<String>,
+    pub new_stage: Option<String>,
+    pub notes: Option<String>,
+    pub performed_by: Option<Uuid>,
+    pub performed_at: DateTime<Utc>,
+    pub metadata: serde_json::Value,
+}
+
+/// Create lifecycle event request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateLifecycleEvent {
+    pub event_type: String,
+    pub previous_stage: Option<String>,
+    pub new_stage: Option<String>,
+    pub notes: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Asset from integration (for auto-discovery)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredAsset {
+    pub external_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub asset_type: String,
+    pub ip_address: Option<String>,
+    pub metadata: serde_json::Value,
 }
 
 impl Asset {

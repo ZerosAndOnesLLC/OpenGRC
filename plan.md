@@ -1350,20 +1350,24 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 ### Phase 3: Advanced Features
 **Goal: Enterprise-grade capabilities**
 
-#### 3.1 Vendor Management (Partial)
+#### 3.1 Vendor Management
 - [x] Vendor inventory
 - [x] Risk tiering (criticality field)
-- [ ] Security questionnaire builder
-- [ ] Questionnaire portal for vendors
+- [x] Security questionnaire builder (templates, sections, questions)
+- [x] Questionnaire portal for vendors (token-based access)
 - [x] Document collection & expiry tracking (vendor_documents table)
+- [x] Vendor documents API (CRUD operations)
 - [ ] SOC 2 report parser (extract key findings)
+- [x] UI: Vendors page completion
 
-#### 3.2 Asset Management (Partial)
+#### 3.2 Asset Management
 - [x] Manual asset inventory
-- [ ] Auto-discovery from integrations
 - [x] Asset classification
 - [x] Asset-to-control mapping (asset_control_mappings table)
-- [ ] Lifecycle tracking
+- [x] Lifecycle tracking (stages, maintenance, end-of-life dates)
+- [x] Integration source tracking (external_id, last_synced_at)
+- [x] Auto-discovery from integrations (AWS EC2, RDS, S3)
+- [x] UI: Assets page completion
 
 #### 3.3 User Access Reviews (Partial)
 - [x] Campaign creation wizard (access_review_campaigns table)

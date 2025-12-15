@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- Index for efficient user notification queries
-CREATE INDEX idx_notifications_user ON notifications(user_id, organization_id, read_at);
-CREATE INDEX idx_notifications_created ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, organization_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
 
 -- Policy reminder schedules
 CREATE TABLE IF NOT EXISTS policy_reminder_schedules (
@@ -40,11 +40,12 @@ CREATE TABLE IF NOT EXISTS policy_reminders_sent (
     reminder_type VARCHAR(50) NOT NULL, -- 'scheduled', 'manual'
     channel VARCHAR(50) NOT NULL, -- 'email', 'in_app', 'both'
     sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(policy_id, user_id, policy_version, reminder_type, sent_at::date)
+    sent_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    UNIQUE(policy_id, user_id, policy_version, reminder_type, sent_date)
 );
 
-CREATE INDEX idx_reminders_sent_policy ON policy_reminders_sent(policy_id, user_id, policy_version);
-CREATE INDEX idx_reminders_sent_date ON policy_reminders_sent(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reminders_sent_policy ON policy_reminders_sent(policy_id, user_id, policy_version);
+CREATE INDEX IF NOT EXISTS idx_reminders_sent_date ON policy_reminders_sent(sent_at DESC);
 
 -- Email templates for policy reminders
 CREATE TABLE IF NOT EXISTS email_templates (
@@ -70,4 +71,5 @@ VALUES
      'New Policy Published\n\nDear {{user_name}},\n\nA new policy has been published that requires your acknowledgment:\n\n{{policy_title}} ({{policy_code}})\n\nPlease review and acknowledge this policy.\n\nVisit: {{acknowledge_url}}\n\nThank you,\n{{organization_name}}'),
     (NULL, 'policy_updated', 'Updated Policy: {{policy_title}}',
      '<h2>Policy Updated</h2><p>Dear {{user_name}},</p><p>A policy has been updated and requires your re-acknowledgment:</p><p><strong>{{policy_title}}</strong> ({{policy_code}}) - Version {{policy_version}}</p><p>Please review the updated policy and acknowledge it.</p><p><a href="{{acknowledge_url}}">Review and Acknowledge Policy</a></p><p>Thank you,<br/>{{organization_name}}</p>',
-     'Policy Updated\n\nDear {{user_name}},\n\nA policy has been updated and requires your re-acknowledgment:\n\n{{policy_title}} ({{policy_code}}) - Version {{policy_version}}\n\nPlease review the updated policy and acknowledge it.\n\nVisit: {{acknowledge_url}}\n\nThank you,\n{{organization_name}}');
+     'Policy Updated\n\nDear {{user_name}},\n\nA policy has been updated and requires your re-acknowledgment:\n\n{{policy_title}} ({{policy_code}}) - Version {{policy_version}}\n\nPlease review the updated policy and acknowledge it.\n\nVisit: {{acknowledge_url}}\n\nThank you,\n{{organization_name}}')
+ON CONFLICT (organization_id, template_type) DO NOTHING;
