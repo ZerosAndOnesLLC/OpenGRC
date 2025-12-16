@@ -25,9 +25,7 @@ fn validate_cron_expression(cron_expr: &str) -> bool {
     cron_parser::parse(cron_expr, &Utc::now()).is_ok()
 }
 
-const CACHE_TTL: Duration = Duration::from_secs(1800);
 const CACHE_PREFIX_FRESHNESS: &str = "evidence:freshness";
-const CACHE_PREFIX_TASKS: &str = "evidence:tasks";
 
 #[derive(Clone)]
 pub struct EvidenceAutomationService {

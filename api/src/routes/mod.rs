@@ -5,6 +5,7 @@ pub mod assets;
 pub mod audits;
 pub mod auth;
 pub mod aws;
+pub mod collaboration;
 pub mod controls;
 pub mod control_test_automation;
 pub mod enterprise;
@@ -72,6 +73,9 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/policy-templates/:id", get(policy_templates::get_policy_template))
         // OAuth callback - must be public since it's called by OAuth providers
         .route("/api/v1/integrations/oauth/callback", get(integrations::oauth_callback))
+        // Collaboration OAuth callbacks - must be public
+        .route("/api/v1/collaboration/slack/callback", get(collaboration::slack_oauth_callback))
+        .route("/api/v1/collaboration/teams/callback", get(collaboration::teams_oauth_callback))
         // Vendor portal routes (public, token-based access)
         .route("/api/v1/vendor-portal", get(questionnaires::get_portal_access))
         .route("/api/v1/vendor-portal/response", post(questionnaires::save_portal_response))
@@ -426,6 +430,33 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/usage/stats", get(enterprise::get_usage_stats))
         // Enterprise Features - Stats
         .route("/api/v1/enterprise/stats", get(enterprise::get_enterprise_stats))
+        // Collaboration - Comments
+        .route("/api/v1/:entity_type/:entity_id/comments", get(collaboration::list_comments))
+        .route("/api/v1/:entity_type/:entity_id/comments", post(collaboration::create_comment))
+        .route("/api/v1/:entity_type/:entity_id/comments/:comment_id", get(collaboration::get_comment))
+        .route("/api/v1/:entity_type/:entity_id/comments/:comment_id", put(collaboration::update_comment))
+        .route("/api/v1/:entity_type/:entity_id/comments/:comment_id", delete(collaboration::delete_comment))
+        .route("/api/v1/collaboration/comments/stats", get(collaboration::get_comment_stats))
+        // Collaboration - User Search (for @mentions)
+        .route("/api/v1/collaboration/users/search", get(collaboration::search_users))
+        // Collaboration - Notification Preferences
+        .route("/api/v1/collaboration/notification-preferences", get(collaboration::get_notification_preferences))
+        .route("/api/v1/collaboration/notification-preferences", put(collaboration::update_notification_preferences))
+        .route("/api/v1/collaboration/notification-types", get(collaboration::get_notification_types))
+        // Collaboration - Presence
+        .route("/api/v1/:entity_type/:entity_id/presence", get(collaboration::get_entity_presence))
+        // Collaboration - Stats
+        .route("/api/v1/collaboration/stats", get(collaboration::get_collaboration_stats))
+        // Collaboration - Slack Integration
+        .route("/api/v1/collaboration/slack/oauth/start", post(collaboration::slack_oauth_start))
+        .route("/api/v1/collaboration/slack/workspaces", get(collaboration::get_slack_workspaces))
+        .route("/api/v1/collaboration/slack/workspaces/:workspace_id", delete(collaboration::disconnect_slack_workspace))
+        // Collaboration - Teams Integration
+        .route("/api/v1/collaboration/teams/oauth/start", post(collaboration::teams_oauth_start))
+        .route("/api/v1/collaboration/teams/tenants", get(collaboration::get_teams_tenants))
+        .route("/api/v1/collaboration/teams/tenants/:tenant_id", delete(collaboration::disconnect_teams_tenant))
+        // Collaboration - Email Digests
+        .route("/api/v1/collaboration/digests/process", post(collaboration::process_digests))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

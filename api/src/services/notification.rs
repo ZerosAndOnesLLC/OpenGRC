@@ -11,7 +11,6 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct NotificationService {
     db: PgPool,
-    cache: CacheClient,
     ses_client: Option<SesClient>,
     from_email: String,
     app_url: String,
@@ -41,7 +40,9 @@ pub struct CreateNotification {
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct EmailTemplate {
+    #[allow(dead_code)]
     id: Uuid,
+    #[allow(dead_code)]
     template_type: String,
     subject: String,
     body_html: String,
@@ -61,7 +62,7 @@ pub struct PolicyReminderData {
 }
 
 impl NotificationService {
-    pub async fn new(db: PgPool, cache: CacheClient, config: &Config) -> Self {
+    pub async fn new(db: PgPool, _cache: CacheClient, config: &Config) -> Self {
         let ses_client = if config.is_production() {
             // In production, initialize SES client
             let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
@@ -72,7 +73,6 @@ impl NotificationService {
 
         Self {
             db,
-            cache,
             ses_client,
             from_email: std::env::var("SES_FROM_EMAIL")
                 .unwrap_or_else(|_| "noreply@opengrc.com".to_string()),

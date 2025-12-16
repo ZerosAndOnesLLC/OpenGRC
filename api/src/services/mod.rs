@@ -4,6 +4,7 @@ pub mod analytics;
 pub mod asset;
 pub mod audit;
 pub mod aws;
+pub mod collaboration;
 pub mod control;
 pub mod control_test_automation;
 pub mod enterprise;
@@ -35,6 +36,7 @@ pub use analytics::AnalyticsService;
 pub use asset::AssetService;
 pub use audit::AuditService;
 pub use aws::AwsService;
+pub use collaboration::CollaborationService;
 pub use control::ControlService;
 pub use control_test_automation::ControlTestAutomationService;
 pub use enterprise::EnterpriseService;
@@ -80,6 +82,7 @@ pub struct AppServices {
     pub ai: AiService,
     pub analytics: AnalyticsService,
     pub enterprise: EnterpriseService,
+    pub collaboration: CollaborationService,
 }
 
 impl AppServices {
@@ -155,6 +158,9 @@ impl AppServices {
         // Enterprise service (RBAC, SSO, SCIM, audit exports, branding, API keys)
         let enterprise = EnterpriseService::new(db.clone(), std::sync::Arc::new(cache.clone()));
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, task, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review, ai, analytics, enterprise }
+        // Collaboration service (comments, mentions, presence, Slack/Teams, digests)
+        let collaboration = CollaborationService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, task, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review, ai, analytics, enterprise, collaboration }
     }
 }

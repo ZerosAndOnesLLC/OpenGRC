@@ -1,5 +1,6 @@
 pub mod asset;
 pub mod audit;
+pub mod collaboration;
 pub mod control;
 pub mod enterprise;
 pub mod evidence;
@@ -160,4 +161,29 @@ pub use enterprise::{
     OrganizationUsageDaily, OrganizationUsageSummary,
     // Stats
     EnterpriseStats,
+};
+
+pub use collaboration::{
+    // Entity Comments
+    EntityComment, EntityCommentWithUser, CreateEntityComment, UpdateEntityComment,
+    ListCommentsQuery, MentionInfo, CommentMention, CommentStats, CommentEntityTypeCount,
+    COMMENTABLE_ENTITY_TYPES,
+    // Notification Preferences
+    NotificationPreferences, UpdateNotificationPreferences, NOTIFICATION_TYPES,
+    // Email Digests
+    EmailDigest, DigestContent, DigestTask, DigestMention, DigestComment, DigestNotification,
+    // Slack Integration
+    SlackWorkspace, SlackWorkspaceResponse, ConnectSlackWorkspace,
+    SlackChannelMapping, CreateSlackChannelMapping, UpdateSlackChannelMapping,
+    SlackUserConnection,
+    // Teams Integration
+    TeamsTenant, TeamsTenantResponse, ConnectTeamsTenant,
+    TeamsChannelMapping, CreateTeamsChannelMapping, TeamsUserConnection,
+    // Real-time Collaboration
+    WebSocketSession, CreateWebSocketSession, CollaborationPresence,
+    PresenceInfo, UpdatePresence, CollaborationEvent, COLLABORATION_EVENT_TYPES,
+    // WebSocket Messages
+    WebSocketMessage,
+    // User Search
+    UserSearchQuery, UserSearchResult,
 };

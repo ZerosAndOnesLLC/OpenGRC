@@ -3,7 +3,7 @@ use crate::utils::{AppError, AppResult};
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool, Row};
+use sqlx::{FromRow, PgPool};
 use std::time::Duration;
 use uuid::Uuid;
 
