@@ -422,3 +422,475 @@ pub struct UserInfo {
     pub email: String,
     pub name: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct TaskReminderData {
+    pub task_id: Uuid,
+    pub task_title: String,
+    pub due_at: DateTime<Utc>,
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub user_email: String,
+}
+
+impl NotificationService {
+    /// Send task due date reminder (both email and in-app)
+    pub async fn send_task_reminder(
+        &self,
+        org_id: Uuid,
+        data: TaskReminderData,
+        reminder_type: &str, // "due_today", "due_soon", "overdue"
+    ) -> AppResult<()> {
+        // Create in-app notification
+        let notification_data = serde_json::json!({
+            "task_id": data.task_id,
+            "due_at": data.due_at,
+        });
+
+        let (title, message) = match reminder_type {
+            "overdue" => (
+                format!("Overdue Task: {}", data.task_title),
+                format!(
+                    "The task \"{}\" was due on {} and is overdue.",
+                    data.task_title,
+                    data.due_at.format("%Y-%m-%d")
+                ),
+            ),
+            "due_today" => (
+                format!("Task Due Today: {}", data.task_title),
+                format!("The task \"{}\" is due today.", data.task_title),
+            ),
+            _ => (
+                format!("Task Due Soon: {}", data.task_title),
+                format!(
+                    "The task \"{}\" is due on {}.",
+                    data.task_title,
+                    data.due_at.format("%Y-%m-%d")
+                ),
+            ),
+        };
+
+        self.create_notification(
+            org_id,
+            CreateNotification {
+                user_id: data.user_id,
+                notification_type: format!("task_{}", reminder_type),
+                title,
+                message,
+                data: Some(notification_data),
+            },
+        )
+        .await?;
+
+        Ok(())
+    }
+
+    /// Get tasks needing reminders for an organization
+    pub async fn get_tasks_needing_reminders(
+        &self,
+        org_id: Uuid,
+    ) -> AppResult<Vec<(TaskReminderData, String)>> {
+        // Get overdue tasks (no reminder sent in last 24 hours)
+        let overdue: Vec<(Uuid, String, DateTime<Utc>, Uuid, String, String)> = sqlx::query_as(
+            r#"
+            SELECT t.id, t.title, t.due_at, u.id, COALESCE(u.name, u.email), u.email
+            FROM tasks t
+            JOIN users u ON t.assignee_id = u.id
+            WHERE t.organization_id = $1
+              AND t.status IN ('open', 'in_progress')
+              AND t.due_at < NOW()
+              AND t.assignee_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM notifications n
+                  WHERE n.user_id = t.assignee_id
+                    AND n.notification_type = 'task_overdue'
+                    AND (n.data->>'task_id')::uuid = t.id
+                    AND n.created_at > NOW() - INTERVAL '24 hours'
+              )
+            ORDER BY t.due_at ASC
+            LIMIT 100
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        // Get tasks due today (no reminder sent today)
+        let due_today: Vec<(Uuid, String, DateTime<Utc>, Uuid, String, String)> = sqlx::query_as(
+            r#"
+            SELECT t.id, t.title, t.due_at, u.id, COALESCE(u.name, u.email), u.email
+            FROM tasks t
+            JOIN users u ON t.assignee_id = u.id
+            WHERE t.organization_id = $1
+              AND t.status IN ('open', 'in_progress')
+              AND t.due_at::date = CURRENT_DATE
+              AND t.assignee_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM notifications n
+                  WHERE n.user_id = t.assignee_id
+                    AND n.notification_type = 'task_due_today'
+                    AND (n.data->>'task_id')::uuid = t.id
+                    AND n.created_at::date = CURRENT_DATE
+              )
+            ORDER BY t.due_at ASC
+            LIMIT 100
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        // Get tasks due in next 3 days (no reminder sent in last 3 days)
+        let due_soon: Vec<(Uuid, String, DateTime<Utc>, Uuid, String, String)> = sqlx::query_as(
+            r#"
+            SELECT t.id, t.title, t.due_at, u.id, COALESCE(u.name, u.email), u.email
+            FROM tasks t
+            JOIN users u ON t.assignee_id = u.id
+            WHERE t.organization_id = $1
+              AND t.status IN ('open', 'in_progress')
+              AND t.due_at::date > CURRENT_DATE
+              AND t.due_at::date <= CURRENT_DATE + INTERVAL '3 days'
+              AND t.assignee_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM notifications n
+                  WHERE n.user_id = t.assignee_id
+                    AND n.notification_type = 'task_due_soon'
+                    AND (n.data->>'task_id')::uuid = t.id
+                    AND n.created_at > NOW() - INTERVAL '3 days'
+              )
+            ORDER BY t.due_at ASC
+            LIMIT 100
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        let mut results = Vec::new();
+
+        for (task_id, task_title, due_at, user_id, user_name, user_email) in overdue {
+            results.push((
+                TaskReminderData {
+                    task_id,
+                    task_title,
+                    due_at,
+                    user_id,
+                    user_name,
+                    user_email,
+                },
+                "overdue".to_string(),
+            ));
+        }
+
+        for (task_id, task_title, due_at, user_id, user_name, user_email) in due_today {
+            results.push((
+                TaskReminderData {
+                    task_id,
+                    task_title,
+                    due_at,
+                    user_id,
+                    user_name,
+                    user_email,
+                },
+                "due_today".to_string(),
+            ));
+        }
+
+        for (task_id, task_title, due_at, user_id, user_name, user_email) in due_soon {
+            results.push((
+                TaskReminderData {
+                    task_id,
+                    task_title,
+                    due_at,
+                    user_id,
+                    user_name,
+                    user_email,
+                },
+                "due_soon".to_string(),
+            ));
+        }
+
+        Ok(results)
+    }
+
+    /// Process and send all due task reminders for an organization
+    pub async fn process_task_reminders(&self, org_id: Uuid) -> AppResult<i32> {
+        let tasks_needing_reminders = self.get_tasks_needing_reminders(org_id).await?;
+        let count = tasks_needing_reminders.len() as i32;
+
+        for (data, reminder_type) in tasks_needing_reminders {
+            if let Err(e) = self.send_task_reminder(org_id, data, &reminder_type).await {
+                tracing::warn!("Failed to send task reminder: {}", e);
+            }
+        }
+
+        Ok(count)
+    }
+}
+
+// ==================== Security Alert Types ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityAlertData {
+    pub alert_type: SecurityAlertType,
+    pub integration_id: Uuid,
+    pub integration_name: String,
+    pub severity: AlertSeverity,
+    pub title: String,
+    pub description: String,
+    pub details: serde_json::Value,
+    pub event_time: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SecurityAlertType {
+    RootAccountActivity,
+    SensitiveIamAction,
+    FailedAuthentication,
+    CriticalSecurityFinding,
+    ComplianceViolation,
+    UnauthorizedAccess,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AlertSeverity {
+    Critical,
+    High,
+    Medium,
+    Low,
+    Info,
+}
+
+impl NotificationService {
+    /// Create security alert notifications for admins/compliance managers
+    pub async fn create_security_alert(
+        &self,
+        org_id: Uuid,
+        alert: SecurityAlertData,
+    ) -> AppResult<i32> {
+        // Get all admin and compliance manager users
+        let admin_users: Vec<(Uuid,)> = sqlx::query_as(
+            r#"
+            SELECT id FROM users
+            WHERE organization_id = $1 AND role IN ('admin', 'compliance_manager')
+            "#,
+        )
+        .bind(org_id)
+        .fetch_all(&self.db)
+        .await?;
+
+        if admin_users.is_empty() {
+            tracing::warn!("No admin users found to receive security alert for org {}", org_id);
+            return Ok(0);
+        }
+
+        let notification_type = format!("security_{}", serde_json::to_string(&alert.alert_type)
+            .unwrap_or_default()
+            .trim_matches('"'));
+
+        let notification_data = serde_json::json!({
+            "alert_type": alert.alert_type,
+            "integration_id": alert.integration_id,
+            "severity": alert.severity,
+            "details": alert.details,
+            "event_time": alert.event_time,
+        });
+
+        let mut created_count = 0;
+        for (user_id,) in admin_users {
+            // Check if we already sent this exact alert recently (within 1 hour)
+            let (existing_count,): (i64,) = sqlx::query_as(
+                r#"
+                SELECT COUNT(*) FROM notifications
+                WHERE organization_id = $1
+                  AND user_id = $2
+                  AND notification_type = $3
+                  AND title = $4
+                  AND created_at > NOW() - INTERVAL '1 hour'
+                "#,
+            )
+            .bind(org_id)
+            .bind(user_id)
+            .bind(&notification_type)
+            .bind(&alert.title)
+            .fetch_one(&self.db)
+            .await?;
+
+            if existing_count > 0 {
+                continue; // Skip duplicate
+            }
+
+            self.create_notification(
+                org_id,
+                CreateNotification {
+                    user_id,
+                    notification_type: notification_type.clone(),
+                    title: alert.title.clone(),
+                    message: alert.description.clone(),
+                    data: Some(notification_data.clone()),
+                },
+            )
+            .await?;
+
+            created_count += 1;
+        }
+
+        if created_count > 0 {
+            tracing::info!(
+                "Created {} security alert notifications for org {} - {}",
+                created_count,
+                org_id,
+                alert.title
+            );
+        }
+
+        Ok(created_count)
+    }
+
+    /// Create alerts for CloudTrail security events
+    pub async fn create_cloudtrail_security_alerts(
+        &self,
+        org_id: Uuid,
+        integration_id: Uuid,
+        integration_name: &str,
+        root_actions: Vec<serde_json::Value>,
+        sensitive_actions: Vec<serde_json::Value>,
+        failed_actions: Vec<serde_json::Value>,
+    ) -> AppResult<i32> {
+        let mut total_alerts = 0;
+
+        // Alert for root account activity (Critical)
+        if !root_actions.is_empty() {
+            let alert = SecurityAlertData {
+                alert_type: SecurityAlertType::RootAccountActivity,
+                integration_id,
+                integration_name: integration_name.to_string(),
+                severity: AlertSeverity::Critical,
+                title: format!("Root Account Activity Detected ({} actions)", root_actions.len()),
+                description: format!(
+                    "AWS root account was used for {} action(s). Root account usage should be minimized and monitored.",
+                    root_actions.len()
+                ),
+                details: serde_json::json!({
+                    "actions": root_actions.iter().take(10).collect::<Vec<_>>(),
+                    "total_count": root_actions.len(),
+                }),
+                event_time: root_actions.first()
+                    .and_then(|a| a.get("event_time"))
+                    .and_then(|t| t.as_str())
+                    .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&Utc)),
+            };
+            total_alerts += self.create_security_alert(org_id, alert).await?;
+        }
+
+        // Alert for sensitive IAM actions (High)
+        if sensitive_actions.len() >= 5 {
+            let alert = SecurityAlertData {
+                alert_type: SecurityAlertType::SensitiveIamAction,
+                integration_id,
+                integration_name: integration_name.to_string(),
+                severity: AlertSeverity::High,
+                title: format!("Sensitive IAM Actions Detected ({} actions)", sensitive_actions.len()),
+                description: format!(
+                    "{} sensitive IAM actions detected. Review for unauthorized changes.",
+                    sensitive_actions.len()
+                ),
+                details: serde_json::json!({
+                    "actions": sensitive_actions.iter().take(10).collect::<Vec<_>>(),
+                    "total_count": sensitive_actions.len(),
+                }),
+                event_time: sensitive_actions.first()
+                    .and_then(|a| a.get("event_time"))
+                    .and_then(|t| t.as_str())
+                    .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&Utc)),
+            };
+            total_alerts += self.create_security_alert(org_id, alert).await?;
+        }
+
+        // Alert for failed authentication attempts (Medium - only if significant)
+        if failed_actions.len() >= 10 {
+            let alert = SecurityAlertData {
+                alert_type: SecurityAlertType::FailedAuthentication,
+                integration_id,
+                integration_name: integration_name.to_string(),
+                severity: AlertSeverity::Medium,
+                title: format!("Multiple Failed API Calls ({} failures)", failed_actions.len()),
+                description: format!(
+                    "{} failed AWS API calls detected. This may indicate misconfigured permissions or unauthorized access attempts.",
+                    failed_actions.len()
+                ),
+                details: serde_json::json!({
+                    "failures": failed_actions.iter().take(10).collect::<Vec<_>>(),
+                    "total_count": failed_actions.len(),
+                }),
+                event_time: failed_actions.first()
+                    .and_then(|a| a.get("event_time"))
+                    .and_then(|t| t.as_str())
+                    .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&Utc)),
+            };
+            total_alerts += self.create_security_alert(org_id, alert).await?;
+        }
+
+        Ok(total_alerts)
+    }
+
+    /// Create alerts for Security Hub critical findings
+    pub async fn create_securityhub_alerts(
+        &self,
+        org_id: Uuid,
+        integration_id: Uuid,
+        integration_name: &str,
+        critical_count: i32,
+        high_count: i32,
+        critical_findings: Vec<serde_json::Value>,
+    ) -> AppResult<i32> {
+        let mut total_alerts = 0;
+
+        // Alert for critical findings
+        if critical_count > 0 {
+            let alert = SecurityAlertData {
+                alert_type: SecurityAlertType::CriticalSecurityFinding,
+                integration_id,
+                integration_name: integration_name.to_string(),
+                severity: AlertSeverity::Critical,
+                title: format!("{} Critical Security Hub Findings", critical_count),
+                description: format!(
+                    "AWS Security Hub detected {} critical and {} high severity findings that require immediate attention.",
+                    critical_count, high_count
+                ),
+                details: serde_json::json!({
+                    "critical_count": critical_count,
+                    "high_count": high_count,
+                    "critical_findings": critical_findings.iter().take(5).collect::<Vec<_>>(),
+                }),
+                event_time: Some(Utc::now()),
+            };
+            total_alerts += self.create_security_alert(org_id, alert).await?;
+        } else if high_count >= 10 {
+            // Alert for many high findings even if no critical
+            let alert = SecurityAlertData {
+                alert_type: SecurityAlertType::CriticalSecurityFinding,
+                integration_id,
+                integration_name: integration_name.to_string(),
+                severity: AlertSeverity::High,
+                title: format!("{} High Severity Security Hub Findings", high_count),
+                description: format!(
+                    "AWS Security Hub detected {} high severity findings that should be reviewed.",
+                    high_count
+                ),
+                details: serde_json::json!({
+                    "high_count": high_count,
+                }),
+                event_time: Some(Utc::now()),
+            };
+            total_alerts += self.create_security_alert(org_id, alert).await?;
+        }
+
+        Ok(total_alerts)
+    }
+}

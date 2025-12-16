@@ -30,6 +30,14 @@ import { useIntegration, useIntegrationSyncLogs, useMutation } from '@/hooks/use
 import { apiClient } from '@/lib/api-client'
 import { formatDateTime, formatRelativeTime } from '@/types'
 
+interface GitHubAccountInfo {
+  html_url?: string
+  organization?: string
+  login?: string
+  type?: string
+  services_enabled?: Record<string, boolean>
+}
+
 export default function GitHubDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const integrationId = resolvedParams.id
@@ -38,14 +46,14 @@ export default function GitHubDashboardPage({ params }: { params: Promise<{ id: 
   const { toast } = useToast()
 
   const { data: integrationData, isLoading: integrationLoading, refetch: refetchIntegration } = useIntegration(integrationId)
-  const { data: syncLogsData, isLoading: syncLogsLoading, refetch: refetchSyncLogs } = useIntegrationSyncLogs(integrationId, 1, 10)
+  const { data: syncLogsData, isLoading: syncLogsLoading, refetch: refetchSyncLogs } = useIntegrationSyncLogs(integrationId, 10)
 
   const syncMutation = useMutation(async (id: string) => {
     return apiClient.post(`/integrations/${id}/sync`, { full_sync: false })
   })
 
   const collectEvidenceMutation = useMutation(async (id: string) => {
-    return apiClient.post(`/integrations/${id}/collect-evidence`, {})
+    return apiClient.post<{ data: { evidence_created: number } }>(`/integrations/${id}/collect-evidence`, {})
   })
 
   const handleSync = async () => {
@@ -93,7 +101,7 @@ export default function GitHubDashboardPage({ params }: { params: Promise<{ id: 
   }
 
   const integration = integrationData?.data
-  const syncLogs = syncLogsData?.data?.sync_logs || []
+  const syncLogs = syncLogsData?.data || []
 
   if (!integration) {
     return (
@@ -113,7 +121,7 @@ export default function GitHubDashboardPage({ params }: { params: Promise<{ id: 
     return null
   }
 
-  const accountInfo = integration.integration.account_info || {}
+  const accountInfo = (integration.integration.config as GitHubAccountInfo) || {}
 
   return (
     <div className="space-y-6">

@@ -74,7 +74,7 @@ const statusVariants: Record<string, 'default' | 'secondary' | 'success' | 'warn
   cancelled: 'destructive',
 }
 
-const reviewStatusVariants: Record<string, 'default' | 'secondary' | 'success' | 'destructive'> = {
+const reviewStatusVariants: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'warning'> = {
   pending: 'secondary',
   approved: 'success',
   revoked: 'destructive',
@@ -363,7 +363,7 @@ function CampaignDetailSheet({
 
   const handleSync = async () => {
     try {
-      await syncMutation.mutate()
+      await syncMutation.mutate(undefined)
       refetch()
       onUpdate()
     } catch {
@@ -398,7 +398,7 @@ function CampaignDetailSheet({
 
   const handleStartCampaign = async () => {
     try {
-      await startCampaignMutation.mutate()
+      await startCampaignMutation.mutate(undefined)
       onUpdate()
     } catch {
       // Error handled
@@ -407,7 +407,7 @@ function CampaignDetailSheet({
 
   const handleCompleteCampaign = async () => {
     try {
-      await completeCampaignMutation.mutate()
+      await completeCampaignMutation.mutate(undefined)
       onUpdate()
     } catch {
       // Error handled

@@ -45,6 +45,19 @@ pub struct SyncResult {
     pub records_deleted: i32,
     pub errors: Vec<SyncError>,
     pub evidence_collected: Vec<CollectedEvidence>,
+    /// Security alert data for CloudTrail events
+    pub security_alerts: Option<SecurityAlertInfo>,
+}
+
+/// Security alert information collected during sync
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SecurityAlertInfo {
+    pub root_actions: Vec<serde_json::Value>,
+    pub sensitive_actions: Vec<serde_json::Value>,
+    pub failed_actions: Vec<serde_json::Value>,
+    pub critical_findings_count: i32,
+    pub high_findings_count: i32,
+    pub critical_findings: Vec<serde_json::Value>,
 }
 
 impl Default for SyncResult {
@@ -57,6 +70,7 @@ impl Default for SyncResult {
             records_deleted: 0,
             errors: Vec::new(),
             evidence_collected: Vec::new(),
+            security_alerts: None,
         }
     }
 }
@@ -77,6 +91,19 @@ impl SyncResult {
         self.evidence_collected.extend(other.evidence_collected);
         if !other.success {
             self.success = false;
+        }
+        // Merge security alerts
+        if let Some(other_alerts) = other.security_alerts {
+            if let Some(ref mut alerts) = self.security_alerts {
+                alerts.root_actions.extend(other_alerts.root_actions);
+                alerts.sensitive_actions.extend(other_alerts.sensitive_actions);
+                alerts.failed_actions.extend(other_alerts.failed_actions);
+                alerts.critical_findings_count += other_alerts.critical_findings_count;
+                alerts.high_findings_count += other_alerts.high_findings_count;
+                alerts.critical_findings.extend(other_alerts.critical_findings);
+            } else {
+                self.security_alerts = Some(other_alerts);
+            }
         }
     }
 }

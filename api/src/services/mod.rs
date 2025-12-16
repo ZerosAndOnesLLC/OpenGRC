@@ -15,6 +15,7 @@ pub mod questionnaire;
 pub mod reports;
 pub mod risk;
 pub mod soc2_parser;
+pub mod task;
 pub mod vendor;
 
 use sqlx::PgPool;
@@ -42,6 +43,7 @@ pub use questionnaire::QuestionnaireService;
 pub use reports::ReportsService;
 pub use risk::RiskService;
 pub use soc2_parser::Soc2ParserService;
+pub use task::TaskService;
 pub use vendor::VendorService;
 
 #[derive(Clone)]
@@ -58,6 +60,7 @@ pub struct AppServices {
     pub vendor: VendorService,
     pub asset: AssetService,
     pub audit: AuditService,
+    pub task: TaskService,
     pub reports: ReportsService,
     pub pdf: PdfService,
     pub notification: NotificationService,
@@ -88,6 +91,7 @@ impl AppServices {
         let vendor = VendorService::new(db.clone(), cache.clone());
         let asset = AssetService::new(db.clone(), cache.clone());
         let audit = AuditService::new(db.clone(), cache.clone());
+        let task = TaskService::new(db.clone(), cache.clone());
         let reports = ReportsService::new(db.clone());
         let pdf = PdfService::new(db.clone());
         let notification = NotificationService::new(db.clone(), cache.clone(), config).await;
@@ -133,6 +137,6 @@ impl AppServices {
         // Access review service
         let access_review = AccessReviewService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review }
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, task, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review }
     }
 }

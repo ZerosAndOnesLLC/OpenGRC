@@ -159,8 +159,8 @@ function DiscoverAssetsDialog({
   const { data: integrations } = useIntegrations()
 
   // Filter to only show AWS integrations that are connected
-  const awsIntegrations = integrations?.filter(
-    (i) => i.type === 'aws' && i.status === 'connected'
+  const awsIntegrations = integrations?.data?.filter(
+    (i) => i.integration.integration_type === 'aws' && i.integration.status === 'active'
   ) || []
 
   const discoverMutation = useMutation(async (integrationId: string) => {
@@ -231,9 +231,9 @@ function DiscoverAssetsDialog({
                     <SelectValue placeholder="Choose an integration" />
                   </SelectTrigger>
                   <SelectContent>
-                    {awsIntegrations.map((integration) => (
-                      <SelectItem key={integration.id} value={integration.id}>
-                        {integration.name}
+                    {awsIntegrations.map((int) => (
+                      <SelectItem key={int.integration.id} value={int.integration.id}>
+                        {int.integration.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -656,7 +656,9 @@ export default function AssetsPage() {
                   <td className="p-3 text-sm">
                     <div className="flex items-center gap-2">
                       {asset.integration_source && (
-                        <Cloud className="h-3 w-3 text-blue-500" title={`From ${asset.integration_source}`} />
+                        <span title={`From ${asset.integration_source}`}>
+                          <Cloud className="h-3 w-3 text-blue-500" />
+                        </span>
                       )}
                       <div>
                         <div className="font-medium">{asset.name}</div>

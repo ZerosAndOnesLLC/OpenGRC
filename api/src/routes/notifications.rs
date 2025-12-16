@@ -91,3 +91,20 @@ pub async fn mark_all_as_read(
 
     Ok(Json(serde_json::json!({ "success": true })))
 }
+
+/// POST /api/v1/notifications/process-task-reminders
+/// Process and send task due date reminders
+/// This endpoint is designed to be called by a scheduled job
+pub async fn process_task_reminders(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+) -> AppResult<Json<serde_json::Value>> {
+    let org_id = get_org_id(&user)?;
+
+    let count = services.notification.process_task_reminders(org_id).await?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "reminders_sent": count
+    })))
+}

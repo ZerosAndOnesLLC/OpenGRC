@@ -199,6 +199,38 @@ pub struct AuditTypeCount {
     pub count: i64,
 }
 
+// ==================== Evidence Packaging ====================
+
+/// Evidence item for audit package
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvidenceItem {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub evidence_type: String,
+    pub source: String,
+    pub file_path: Option<String>,
+    pub file_size: Option<i64>,
+    pub mime_type: Option<String>,
+    pub collected_at: DateTime<Utc>,
+    pub linked_controls: Vec<String>,
+    pub linked_requests: Vec<String>,
+}
+
+/// Audit evidence package
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvidencePackage {
+    pub audit_id: Uuid,
+    pub audit_name: String,
+    pub framework_name: Option<String>,
+    pub period_start: Option<NaiveDate>,
+    pub period_end: Option<NaiveDate>,
+    pub evidence_count: usize,
+    pub total_file_size: i64,
+    pub evidence: Vec<AuditEvidenceItem>,
+    pub generated_at: DateTime<Utc>,
+}
+
 impl Audit {
     pub fn validate_create(input: &CreateAudit) -> Result<(), String> {
         if input.name.trim().is_empty() {

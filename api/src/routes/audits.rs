@@ -10,7 +10,7 @@ use crate::middleware::AuthUser;
 use crate::models::{
     Audit, AuditFinding, AuditRequest, AuditRequestResponse, AuditStats, AuditWithStats,
     CreateAudit, CreateAuditFinding, CreateAuditRequest, CreateRequestResponse, ListAuditsQuery,
-    UpdateAudit, UpdateAuditFinding,
+    UpdateAudit, UpdateAuditFinding, AuditEvidencePackage, Task,
 };
 use crate::services::AppServices;
 use crate::utils::{AppError, AppResult};
@@ -200,4 +200,54 @@ pub async fn update_finding(
         .update_finding(org_id, path.audit_id, path.finding_id, input)
         .await?;
     Ok(Json(finding))
+}
+
+// ==================== Evidence Package ====================
+
+pub async fn get_evidence_package(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(audit_id): Path<Uuid>,
+) -> AppResult<Json<AuditEvidencePackage>> {
+    let org_id = get_org_id(&user)?;
+    let package = services.audit.get_evidence_package(org_id, audit_id).await?;
+    Ok(Json(package))
+}
+
+// ==================== Remediation Workflow ====================
+
+#[derive(Debug, Deserialize)]
+pub struct CreateRemediationTaskInput {
+    pub assignee_id: Option<Uuid>,
+    pub priority: Option<String>,
+}
+
+pub async fn create_remediation_task(
+    State(services): State<Arc<AppServices>>,
+    Extension(user): Extension<AuthUser>,
+    Path(path): Path<FindingPath>,
+    Json(input): Json<CreateRemediationTaskInput>,
+) -> AppResult<Json<Task>> {
+    let org_id = get_org_id(&user)?;
+    let user_id = get_user_id(&user)?;
+
+    // Get the finding to create the task from
+    let finding = services
+        .audit
+        .get_finding(org_id, path.audit_id, path.finding_id)
+        .await?;
+
+    // Create a remediation task from the finding
+    let task = services
+        .task
+        .create_remediation_task(
+            org_id,
+            user_id,
+            &finding,
+            input.assignee_id,
+            input.priority.unwrap_or_else(|| "high".to_string()),
+        )
+        .await?;
+
+    Ok(Json(task))
 }

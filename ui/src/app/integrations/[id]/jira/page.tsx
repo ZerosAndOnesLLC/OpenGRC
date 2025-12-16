@@ -30,6 +30,15 @@ import { useIntegration, useIntegrationSyncLogs, useMutation } from '@/hooks/use
 import { apiClient } from '@/lib/api-client'
 import { formatDateTime, formatRelativeTime } from '@/types'
 
+interface JiraAccountInfo {
+  instance_url?: string
+  display_name?: string
+  email?: string
+  server_version?: string
+  deployment_type?: string
+  services_enabled?: Record<string, boolean>
+}
+
 export default function JiraDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
   const integrationId = resolvedParams.id
@@ -38,14 +47,14 @@ export default function JiraDashboardPage({ params }: { params: Promise<{ id: st
   const { toast } = useToast()
 
   const { data: integrationData, isLoading: integrationLoading, refetch: refetchIntegration } = useIntegration(integrationId)
-  const { data: syncLogsData, isLoading: syncLogsLoading, refetch: refetchSyncLogs } = useIntegrationSyncLogs(integrationId, 1, 10)
+  const { data: syncLogsData, isLoading: syncLogsLoading, refetch: refetchSyncLogs } = useIntegrationSyncLogs(integrationId, 10)
 
   const syncMutation = useMutation(async (id: string) => {
     return apiClient.post(`/integrations/${id}/sync`, { full_sync: false })
   })
 
   const collectEvidenceMutation = useMutation(async (id: string) => {
-    return apiClient.post(`/integrations/${id}/collect-evidence`, {})
+    return apiClient.post<{ data: { evidence_created: number } }>(`/integrations/${id}/collect-evidence`, {})
   })
 
   const handleSync = async () => {
@@ -93,7 +102,7 @@ export default function JiraDashboardPage({ params }: { params: Promise<{ id: st
   }
 
   const integration = integrationData?.data
-  const syncLogs = syncLogsData?.data?.sync_logs || []
+  const syncLogs = syncLogsData?.data || []
 
   if (!integration) {
     return (
@@ -113,7 +122,7 @@ export default function JiraDashboardPage({ params }: { params: Promise<{ id: st
     return null
   }
 
-  const accountInfo = integration.integration.account_info || {}
+  const accountInfo = (integration.integration.config as JiraAccountInfo) || {}
 
   return (
     <div className="space-y-6">

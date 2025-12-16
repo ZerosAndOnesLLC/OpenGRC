@@ -19,6 +19,7 @@ pub mod risks;
 pub mod search;
 pub mod soc2;
 pub mod sso;
+pub mod tasks;
 pub mod vendors;
 
 use axum::{
@@ -180,6 +181,8 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/audits/:audit_id/findings", get(audits::list_findings))
         .route("/api/v1/audits/:audit_id/findings", post(audits::create_finding))
         .route("/api/v1/audits/:audit_id/findings/:finding_id", put(audits::update_finding))
+        .route("/api/v1/audits/:audit_id/findings/:finding_id/remediation-task", post(audits::create_remediation_task))
+        .route("/api/v1/audits/:id/evidence-package", get(audits::get_evidence_package))
         .route("/api/v1/integrations", get(integrations::list_integrations))
         .route("/api/v1/integrations/available", get(integrations::list_available_integrations))
         .route("/api/v1/integrations/stats", get(integrations::get_integration_stats))
@@ -221,6 +224,7 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/notifications", get(notifications::list_notifications))
         .route("/api/v1/notifications/count", get(notifications::get_unread_count))
         .route("/api/v1/notifications/read-all", put(notifications::mark_all_as_read))
+        .route("/api/v1/notifications/process-task-reminders", post(notifications::process_task_reminders))
         .route("/api/v1/notifications/:id/read", put(notifications::mark_as_read))
         .route("/api/v1/search", get(search::search))
         .route("/api/v1/search/status", get(search::search_status))
@@ -302,6 +306,25 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/access-reviews/stats", get(access_reviews::get_stats))
         .route("/api/v1/access-reviews/campaigns/:campaign_id/certification", get(access_reviews::get_certification_report))
         .route("/api/v1/access-reviews/campaigns/:campaign_id/certification/csv", get(access_reviews::download_certification_csv))
+        // Task routes
+        .route("/api/v1/tasks", get(tasks::list_tasks))
+        .route("/api/v1/tasks/stats", get(tasks::get_task_stats))
+        .route("/api/v1/tasks/my", get(tasks::get_my_tasks))
+        .route("/api/v1/tasks/overdue", get(tasks::get_overdue_tasks))
+        .route("/api/v1/tasks/recurring", get(tasks::list_recurring_tasks))
+        .route("/api/v1/tasks/recurring/process", post(tasks::process_recurring_tasks))
+        .route("/api/v1/tasks/:id", get(tasks::get_task))
+        .route("/api/v1/tasks", post(tasks::create_task))
+        .route("/api/v1/tasks/:id", put(tasks::update_task))
+        .route("/api/v1/tasks/:id", delete(tasks::delete_task))
+        .route("/api/v1/tasks/:id/complete", post(tasks::complete_task))
+        .route("/api/v1/tasks/:id/occurrences", get(tasks::get_task_occurrences))
+        .route("/api/v1/tasks/:id/recurrence-history", get(tasks::get_recurrence_history))
+        .route("/api/v1/tasks/:id/skip", post(tasks::skip_next_occurrence))
+        .route("/api/v1/tasks/:id/pause", post(tasks::pause_recurring_task))
+        .route("/api/v1/tasks/:id/resume", post(tasks::resume_recurring_task))
+        .route("/api/v1/tasks/:task_id/comments", get(tasks::list_comments))
+        .route("/api/v1/tasks/:task_id/comments", post(tasks::add_comment))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

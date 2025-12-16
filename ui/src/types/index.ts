@@ -727,7 +727,7 @@ export interface AssetStats {
 
 // ==================== Audit ====================
 
-export type AuditType = 'type1' | 'type2' | 'certification' | 'internal' | 'other'
+export type AuditType = 'external' | 'internal' | 'certification' | 'compliance' | 'readiness'
 export type AuditStatus = 'planning' | 'fieldwork' | 'review' | 'completed' | 'cancelled'
 export type FindingType = 'observation' | 'exception' | 'deficiency' | 'recommendation'
 export type FindingStatus = 'open' | 'remediation' | 'closed' | 'accepted'
@@ -867,6 +867,149 @@ export interface AuditStats {
   open_requests: number
   total_findings: number
   open_findings: number
+}
+
+export interface AuditEvidenceItem {
+  id: string
+  title: string
+  description: string | null
+  evidence_type: string
+  source: string
+  file_path: string | null
+  file_size: number | null
+  mime_type: string | null
+  collected_at: string
+  linked_controls: string[]
+  linked_requests: string[]
+}
+
+export interface AuditEvidencePackage {
+  audit_id: string
+  audit_name: string
+  framework_name: string | null
+  period_start: string | null
+  period_end: string | null
+  evidence_count: number
+  total_file_size: number
+  evidence: AuditEvidenceItem[]
+  generated_at: string
+}
+
+// ==================== Task ====================
+
+export type TaskType = 'control_test' | 'evidence_collection' | 'review' | 'remediation' | 'general'
+export type TaskStatus = 'open' | 'in_progress' | 'completed' | 'overdue'
+export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
+export type RecurrencePattern = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+
+export interface Task {
+  id: string
+  organization_id: string
+  title: string
+  description: string | null
+  task_type: string
+  related_entity_type: string | null
+  related_entity_id: string | null
+  assignee_id: string | null
+  assignee_name?: string | null
+  assignee_email?: string | null
+  due_at: string | null
+  completed_at: string | null
+  status: string
+  priority: string
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // Recurrence fields
+  is_recurring: boolean
+  recurrence_pattern: string | null
+  recurrence_interval: number | null
+  recurrence_day_of_week: number | null
+  recurrence_day_of_month: number | null
+  recurrence_month_of_year: number | null
+  recurrence_end_at: string | null
+  recurrence_count: number | null
+  recurrence_occurrences: number | null
+  parent_task_id: string | null
+  next_occurrence_at: string | null
+  last_occurrence_at: string | null
+}
+
+export interface TaskComment {
+  id: string
+  task_id: string
+  user_id: string
+  user_name?: string
+  user_email?: string
+  content: string
+  created_at: string
+}
+
+export interface CreateTask {
+  title: string
+  description?: string
+  task_type: TaskType
+  related_entity_type?: string
+  related_entity_id?: string
+  assignee_id?: string
+  due_at?: string
+  priority: TaskPriority
+  // Recurrence fields
+  is_recurring?: boolean
+  recurrence_pattern?: RecurrencePattern
+  recurrence_interval?: number
+  recurrence_day_of_week?: number
+  recurrence_day_of_month?: number
+  recurrence_month_of_year?: number
+  recurrence_end_at?: string
+  recurrence_count?: number
+}
+
+export interface UpdateTask {
+  title?: string
+  description?: string
+  task_type?: string
+  assignee_id?: string
+  due_at?: string | Date
+  status?: string
+  priority?: string
+  // Recurrence fields
+  is_recurring?: boolean
+  recurrence_pattern?: string
+  recurrence_interval?: number
+  recurrence_day_of_week?: number
+  recurrence_day_of_month?: number
+  recurrence_month_of_year?: number
+  recurrence_end_at?: string
+  recurrence_count?: number
+}
+
+export interface TaskRecurrenceHistory {
+  id: string
+  task_id: string
+  occurrence_number: number
+  created_task_id: string | null
+  scheduled_at: string
+  created_at: string
+  skipped: boolean
+  skip_reason: string | null
+}
+
+export interface CreateTaskComment {
+  content: string
+}
+
+export interface TaskStats {
+  total: number
+  open: number
+  in_progress: number
+  completed: number
+  overdue: number
+  by_type: { task_type: string; count: number }[]
+  by_priority: { priority: string; count: number }[]
+  by_assignee: { assignee_id: string | null; assignee_name: string | null; count: number }[]
+  due_today: number
+  due_this_week: number
 }
 
 // ==================== Integration ====================

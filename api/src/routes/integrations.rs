@@ -208,16 +208,18 @@ pub async fn collect_evidence(
     // Get integration details
     let integration_with_stats = services.integration.get_integration(org_id, id).await?;
     let integration = &integration_with_stats.integration;
+    let integration_name = integration.name.clone();
+    let integration_type = integration.integration_type.clone();
 
     // Get the appropriate provider based on integration type
-    let provider: Box<dyn IntegrationProvider> = match integration.integration_type.as_str() {
+    let provider: Box<dyn IntegrationProvider> = match integration_type.as_str() {
         "aws" => Box::new(AwsProvider::new()),
         "github" => Box::new(GitHubProvider::new()),
         "jira" => Box::new(JiraProvider::new()),
         _ => {
             return Err(AppError::BadRequest(format!(
                 "Evidence collection is not supported for {} integrations",
-                integration.integration_type
+                integration_type
             )));
         }
     };
@@ -241,13 +243,60 @@ pub async fn collect_evidence(
     let sync_result = provider
         .sync(&config, context)
         .await
-        .map_err(|e| AppError::InternalServerError(format!("{} sync failed: {}", integration.integration_type, e)))?;
+        .map_err(|e| AppError::InternalServerError(format!("{} sync failed: {}", integration_type, e)))?;
+
+    // Store security alerts before consuming evidence_collected
+    let security_alerts = sync_result.security_alerts.clone();
 
     // Persist collected evidence
     let evidence_count = services
         .evidence
         .create_from_integration(org_id, id, sync_result.evidence_collected)
         .await?;
+
+    // Process security alerts for AWS integrations
+    let mut alerts_created = 0;
+    if integration_type == "aws" {
+        if let Some(alerts) = security_alerts {
+            // CloudTrail security alerts
+            if !alerts.root_actions.is_empty() || alerts.sensitive_actions.len() >= 5 || alerts.failed_actions.len() >= 10 {
+                match services
+                    .notification
+                    .create_cloudtrail_security_alerts(
+                        org_id,
+                        id,
+                        &integration_name,
+                        alerts.root_actions,
+                        alerts.sensitive_actions,
+                        alerts.failed_actions,
+                    )
+                    .await
+                {
+                    Ok(count) => alerts_created += count,
+                    Err(e) => tracing::warn!("Failed to create CloudTrail security alerts: {}", e),
+                }
+            }
+
+            // Security Hub alerts
+            if alerts.critical_findings_count > 0 || alerts.high_findings_count >= 10 {
+                match services
+                    .notification
+                    .create_securityhub_alerts(
+                        org_id,
+                        id,
+                        &integration_name,
+                        alerts.critical_findings_count,
+                        alerts.high_findings_count,
+                        alerts.critical_findings,
+                    )
+                    .await
+                {
+                    Ok(count) => alerts_created += count,
+                    Err(e) => tracing::warn!("Failed to create Security Hub alerts: {}", e),
+                }
+            }
+        }
+    }
 
     // Update integration last_sync_at
     sqlx::query("UPDATE integrations SET last_sync_at = NOW() WHERE id = $1")
@@ -260,9 +309,10 @@ pub async fn collect_evidence(
             "evidence_created": evidence_count,
             "records_processed": sync_result.records_processed,
             "errors": sync_result.errors.len(),
-            "success": sync_result.success
+            "success": sync_result.success,
+            "alerts_created": alerts_created
         },
-        "message": format!("Collected {} evidence records from {}", evidence_count, integration.integration_type)
+        "message": format!("Collected {} evidence records from {}", evidence_count, integration_type)
     })))
 }
 

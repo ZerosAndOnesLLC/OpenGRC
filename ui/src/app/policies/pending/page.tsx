@@ -46,7 +46,7 @@ export default function PendingPoliciesPage() {
       setAcknowledging(true)
       await apiClient.post(`/policies/${policyId}/acknowledge`, {})
       // Remove from list after acknowledgment
-      setPolicies(prev => prev.filter(p => p.policy.id !== policyId))
+      setPolicies(prev => prev.filter(p => p.id !== policyId))
       setSelectedPolicy(null)
     } catch (error) {
       console.error("Failed to acknowledge policy:", error)
@@ -92,27 +92,27 @@ export default function PendingPoliciesPage() {
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {policies.map((item) => (
-              <Card key={item.policy.id} className="hover:border-primary/50 transition-colors">
+              <Card key={item.id} className="hover:border-primary/50 transition-colors">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <CardTitle className="text-lg">{item.policy.title}</CardTitle>
+                      <CardTitle className="text-lg">{item.title}</CardTitle>
                       <CardDescription className="font-mono text-xs">
-                        {item.policy.code}
+                        {item.code}
                       </CardDescription>
                     </div>
-                    <Badge variant="outline">v{item.policy.version || 1}</Badge>
+                    <Badge variant="outline">v{item.version || 1}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {item.policy.category && (
-                    <Badge variant="secondary">{item.policy.category}</Badge>
+                  {item.category && (
+                    <Badge variant="secondary">{item.category}</Badge>
                   )}
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Clock className="h-4 w-4" />
-                    {item.policy.effective_date ? (
-                      <span>Effective: {new Date(item.policy.effective_date).toLocaleDateString()}</span>
+                    {item.effective_date ? (
+                      <span>Effective: {new Date(item.effective_date).toLocaleDateString()}</span>
                     ) : (
                       <span>Published</span>
                     )}
@@ -138,21 +138,21 @@ export default function PendingPoliciesPage() {
           {selectedPolicy && (
             <>
               <DialogHeader>
-                <DialogTitle>{selectedPolicy.policy.title}</DialogTitle>
+                <DialogTitle>{selectedPolicy.title}</DialogTitle>
                 <DialogDescription className="flex items-center gap-2">
-                  <span className="font-mono">{selectedPolicy.policy.code}</span>
-                  <Badge variant="outline">Version {selectedPolicy.policy.version || 1}</Badge>
-                  {selectedPolicy.policy.category && (
-                    <Badge variant="secondary">{selectedPolicy.policy.category}</Badge>
+                  <span className="font-mono">{selectedPolicy.code}</span>
+                  <Badge variant="outline">Version {selectedPolicy.version || 1}</Badge>
+                  {selectedPolicy.category && (
+                    <Badge variant="secondary">{selectedPolicy.category}</Badge>
                   )}
                 </DialogDescription>
               </DialogHeader>
 
               <ScrollArea className="max-h-[50vh] pr-4">
                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                  {selectedPolicy.policy.content ? (
+                  {selectedPolicy.content ? (
                     <div
-                      dangerouslySetInnerHTML={{ __html: selectedPolicy.policy.content }}
+                      dangerouslySetInnerHTML={{ __html: selectedPolicy.content }}
                     />
                   ) : (
                     <p className="text-muted-foreground italic">
@@ -164,7 +164,7 @@ export default function PendingPoliciesPage() {
 
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  By clicking "Acknowledge", you confirm that you have read, understood, and agree to comply with this policy.
+                  By clicking &quot;Acknowledge&quot;, you confirm that you have read, understood, and agree to comply with this policy.
                 </p>
               </div>
 
@@ -173,7 +173,7 @@ export default function PendingPoliciesPage() {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => acknowledgePolicy(selectedPolicy.policy.id)}
+                  onClick={() => acknowledgePolicy(selectedPolicy.id)}
                   disabled={acknowledging}
                 >
                   {acknowledging ? "Acknowledging..." : "Acknowledge Policy"}

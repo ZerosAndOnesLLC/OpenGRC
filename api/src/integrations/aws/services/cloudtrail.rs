@@ -1,5 +1,5 @@
 use crate::integrations::aws::client::AwsClient;
-use crate::integrations::provider::{CollectedEvidence, SyncContext, SyncResult};
+use crate::integrations::provider::{CollectedEvidence, SecurityAlertInfo, SyncContext, SyncResult};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -160,6 +160,29 @@ impl CloudTrailCollector {
                 control_codes: vec!["CC6.1".to_string(), "CC6.2".to_string(), "CC7.2".to_string()],
             });
         }
+
+        // Populate security alerts for notification system
+        result.security_alerts = Some(SecurityAlertInfo {
+            root_actions: root_actions.iter().map(|e| json!({
+                "event_name": e.event_name,
+                "event_time": e.event_time.to_rfc3339(),
+                "source_ip": e.source_ip,
+                "event_source": e.event_source,
+            })).collect(),
+            sensitive_actions: sensitive_actions.iter().take(50).map(|e| json!({
+                "event_name": e.event_name,
+                "event_time": e.event_time.to_rfc3339(),
+                "username": e.username,
+                "source_ip": e.source_ip,
+            })).collect(),
+            failed_actions: failed_actions.iter().take(50).map(|e| json!({
+                "event_name": e.event_name,
+                "event_time": e.event_time.to_rfc3339(),
+                "username": e.username,
+                "error_code": e.error_code,
+            })).collect(),
+            ..Default::default()
+        });
 
         result.records_created = result.records_processed;
         Ok(result)

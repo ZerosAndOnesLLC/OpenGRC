@@ -7,6 +7,7 @@ pub mod integration;
 pub mod policy;
 pub mod questionnaire;
 pub mod risk;
+pub mod task;
 pub mod vendor;
 
 use serde::{Deserialize, Serialize};
@@ -89,6 +90,7 @@ pub use audit::{
     Audit, AuditWithStats, AuditRequest, AuditRequestResponse, AuditFinding,
     CreateAudit, UpdateAudit, CreateAuditRequest, CreateAuditFinding, UpdateAuditFinding,
     CreateRequestResponse, ListAuditsQuery, AuditStats, AuditTypeCount,
+    AuditEvidenceItem, AuditEvidencePackage,
 };
 
 pub use integration::{
@@ -116,4 +118,11 @@ pub use questionnaire::{
     QuestionnaireResponseWithQuestion, SaveQuestionnaireResponse, BulkSaveQuestionnaireResponses,
     QuestionnaireResponseComment, CreateResponseComment, VendorPortalAccess,
     VendorPortalSubmission, QuestionnaireStats,
+};
+
+pub use task::{
+    Task, TaskWithAssignee, TaskComment, TaskCommentWithUser,
+    CreateTask, UpdateTask, CreateTaskComment, ListTasksQuery, TaskStats,
+    TaskTypeCount, TaskPriorityCount, TaskAssigneeCount, RecurrencePattern,
+    TaskRecurrenceHistory,
 };

@@ -1254,13 +1254,13 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
    - [x] `AwsS3Collector` implementation
    - [x] `AwsEc2Collector` implementation
    - [x] `AwsRdsCollector` implementation
-   - [ ] Asset linking to OpenGRC inventory
+   - [x] Asset linking to OpenGRC inventory (API + UI discover button)
 
-5. **Phase 2.2.5**: CloudTrail Integration (Partial)
+5. **Phase 2.2.5**: CloudTrail Integration ✅
    - [x] `AwsCloudTrailCollector` implementation
    - [x] Event categorization
-   - [ ] Security event alerting
-   - [ ] Audit log evidence generation
+   - [x] Security event alerting (notifications for root activity, sensitive IAM actions, Security Hub findings)
+   - [x] Audit log evidence generation (activity summary, root actions, sensitive actions with SOC 2 control mapping)
 
 6. **Phase 2.2.6**: UI Implementation (Complete)
    - [x] AWS setup wizard with sample IAM policy
@@ -1379,19 +1379,19 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 - [x] Risk level and MFA status tracking
 - [x] UI: Access Reviews page with full workflow
 
-#### 3.4 Audit Management (Partial)
+#### 3.4 Audit Management
 - [x] Audit workspace (audits table)
 - [ ] Auditor portal (external access)
 - [x] Request list management (audit_requests table)
-- [ ] Evidence packaging
+- [x] Evidence packaging (API + UI)
 - [x] Finding tracking (audit_findings table)
-- [ ] Remediation workflows
+- [x] Remediation workflows (findings to tasks)
 
-#### 3.5 Task Management (Partial)
+#### 3.5 Task Management
 - [x] Task assignment & tracking (tasks table)
-- [ ] Due date reminders
-- [ ] Recurring tasks
-- [ ] Workload dashboard
+- [x] Due date reminders (notification service + API endpoint)
+- [x] Recurring tasks (full implementation with patterns, history, pause/resume)
+- [x] Workload dashboard (integrated into main dashboard)
 - [ ] Email/Slack notifications
 
 #### 3.6 Multi-Framework Support

@@ -521,3 +521,86 @@ export function useAccessReviewCertification(campaignId: string) {
     { enabled: !!campaignId }
   )
 }
+
+// Audit hooks
+export function useAudit(id: string) {
+  return useApi<import('@/types').AuditWithStats>(`/audits/${id}`, {
+    enabled: !!id,
+  })
+}
+
+export function useAuditRequests(auditId: string) {
+  return useApi<import('@/types').AuditRequest[]>(
+    `/audits/${auditId}/requests`,
+    { enabled: !!auditId }
+  )
+}
+
+export function useAuditFindings(auditId: string) {
+  return useApi<import('@/types').AuditFinding[]>(
+    `/audits/${auditId}/findings`,
+    { enabled: !!auditId }
+  )
+}
+
+export function useAuditEvidencePackage(auditId: string) {
+  return useApi<import('@/types').AuditEvidencePackage>(
+    `/audits/${auditId}/evidence-package`,
+    { enabled: !!auditId }
+  )
+}
+
+// Task hooks
+export function useTasks(query?: Record<string, string | number | boolean>) {
+  const queryString = query
+    ? '?' + new URLSearchParams(
+        Object.entries(query)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)])
+      ).toString()
+    : ''
+  return useApi<import('@/types').Task[]>(`/tasks${queryString}`)
+}
+
+export function useTask(id: string) {
+  return useApi<import('@/types').Task>(`/tasks/${id}`, {
+    enabled: !!id,
+  })
+}
+
+export function useTaskStats() {
+  return useApi<import('@/types').TaskStats>('/tasks/stats')
+}
+
+export function useTaskComments(taskId: string) {
+  return useApi<import('@/types').TaskComment[]>(
+    `/tasks/${taskId}/comments`,
+    { enabled: !!taskId }
+  )
+}
+
+export function useMyTasks() {
+  return useApi<import('@/types').Task[]>('/tasks/my')
+}
+
+export function useOverdueTasks() {
+  return useApi<import('@/types').Task[]>('/tasks/overdue')
+}
+
+export function useRecurringTasks() {
+  return useApi<import('@/types').Task[]>('/tasks/recurring')
+}
+
+export function useTaskOccurrences(taskId: string) {
+  return useApi<import('@/types').Task[]>(
+    `/tasks/${taskId}/occurrences`,
+    { enabled: !!taskId }
+  )
+}
+
+export function useTaskRecurrenceHistory(taskId: string) {
+  return useApi<import('@/types').TaskRecurrenceHistory[]>(
+    `/tasks/${taskId}/recurrence-history`,
+    { enabled: !!taskId }
+  )
+}

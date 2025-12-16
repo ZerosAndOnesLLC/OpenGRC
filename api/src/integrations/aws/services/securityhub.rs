@@ -1,5 +1,5 @@
 use crate::integrations::aws::client::AwsClient;
-use crate::integrations::provider::{CollectedEvidence, SyncContext, SyncResult};
+use crate::integrations::provider::{CollectedEvidence, SecurityAlertInfo, SyncContext, SyncResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -121,6 +121,21 @@ impl SecurityHubCollector {
                     control_codes: vec!["CC7.1".to_string(), "CC3.2".to_string()],
                 });
             }
+
+            // Populate security alerts for notification system
+            result.security_alerts = Some(SecurityAlertInfo {
+                critical_findings_count: critical.len() as i32,
+                high_findings_count: high.len() as i32,
+                critical_findings: critical.iter().take(10).map(|f| json!({
+                    "id": f.id,
+                    "title": f.title,
+                    "description": f.description,
+                    "generator_id": f.generator_id,
+                    "resources": f.related_resources,
+                    "remediation": f.remediation_text,
+                })).collect(),
+                ..Default::default()
+            });
         }
 
         result.records_created = result.records_processed;

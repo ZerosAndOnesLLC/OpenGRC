@@ -279,7 +279,7 @@ export default function AwsDashboardPage({ params }: { params: Promise<{ id: str
   })
 
   const collectEvidenceMutation = useMutation(async (id: string) => {
-    return apiClient.post(`/integrations/${id}/collect-evidence`, {})
+    return apiClient.post<{ data: { evidence_created: number } }>(`/integrations/${id}/collect-evidence`, {})
   })
 
   const handleSync = async () => {

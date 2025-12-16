@@ -18,7 +18,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  ListTodo,
+  User,
+  Calendar,
+  RefreshCw,
 } from "lucide-react"
+import Link from "next/link"
 import {
   useControlStats,
   useEvidenceStats,
@@ -30,8 +35,11 @@ import {
   useFrameworks,
   useRiskHeatmap,
   useGapAnalysis,
+  useTaskStats,
+  useOverdueTasks,
+  useRecurringTasks,
 } from '@/hooks/use-api'
-import type { ControlStats, EvidenceStats, PolicyStats, RiskStats, VendorStats, AssetStats, AuditStats, Framework } from '@/types'
+import type { ControlStats, EvidenceStats, PolicyStats, RiskStats, VendorStats, AssetStats, AuditStats, Framework, TaskStats, Task } from '@/types'
 
 function StatCard({
   title,
@@ -274,8 +282,8 @@ function QuickStats({
       />
       <StatCard
         title="Assets"
-        value={assetStats?.active ?? 0}
-        description={`${assetStats?.total ?? 0} total assets`}
+        value={assetStats?.total ?? 0}
+        description={assetStats?.from_integrations ? `${assetStats.from_integrations} from integrations` : 'Across all systems'}
         icon={Server}
       />
     </div>
@@ -318,6 +326,158 @@ function AuditsOverview({ stats }: { stats: AuditStats | null }) {
   )
 }
 
+function TaskWorkloadOverview({
+  stats,
+  overdueTasks,
+  recurringTasks,
+}: {
+  stats: TaskStats | null
+  overdueTasks: Task[] | null
+  recurringTasks: Task[] | null
+}) {
+  if (!stats) return null
+
+  const completionRate = stats.total > 0
+    ? Math.round((stats.completed / stats.total) * 100)
+    : 0
+
+  return (
+    <Card className="col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ListTodo className="h-5 w-5" />
+              Task Workload
+            </CardTitle>
+            <CardDescription>Team task distribution and progress</CardDescription>
+          </div>
+          <Link href="/tasks" className="text-sm text-primary hover:underline">
+            View all tasks
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Task Status Summary */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Status Overview</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-blue-500" />
+                <span className="text-sm">{stats.open} Open</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                <span className="text-sm">{stats.in_progress} In Progress</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-green-500" />
+                <span className="text-sm">{stats.completed} Completed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-red-500" />
+                <span className="text-sm">{stats.overdue} Overdue</span>
+              </div>
+            </div>
+            <div className="pt-2">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Completion Rate</span>
+                <span className="font-medium">{completionRate}%</span>
+              </div>
+              <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500 transition-all"
+                  style={{ width: `${completionRate}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Upcoming Tasks */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Upcoming
+            </h4>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                <span className="text-sm">Due Today</span>
+                <Badge variant={stats.due_today > 0 ? "warning" : "secondary"}>
+                  {stats.due_today}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                <span className="text-sm">Due This Week</span>
+                <Badge variant="secondary">{stats.due_this_week}</Badge>
+              </div>
+              {recurringTasks && recurringTasks.length > 0 && (
+                <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                  <span className="text-sm flex items-center gap-1">
+                    <RefreshCw className="h-3 w-3" />
+                    Recurring Tasks
+                  </span>
+                  <Badge variant="outline">{recurringTasks.length}</Badge>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top Assignees */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Workload by Assignee
+            </h4>
+            <div className="space-y-2">
+              {stats.by_assignee && stats.by_assignee.length > 0 ? (
+                stats.by_assignee.slice(0, 5).map((assignee, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <span className="text-sm truncate max-w-[150px]">
+                      {assignee.assignee_name || 'Unassigned'}
+                    </span>
+                    <Badge variant="secondary">{assignee.count}</Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No tasks assigned</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Overdue Tasks Alert */}
+        {overdueTasks && overdueTasks.length > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center gap-2 text-red-500 dark:text-red-400 mb-2">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                {overdueTasks.length} overdue task{overdueTasks.length > 1 ? 's' : ''} require attention
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {overdueTasks.slice(0, 3).map((task) => (
+                <Link key={task.id} href={`/tasks?id=${task.id}`}>
+                  <Badge variant="destructive" className="cursor-pointer hover:bg-red-600">
+                    {task.title.length > 30 ? task.title.slice(0, 30) + '...' : task.title}
+                  </Badge>
+                </Link>
+              ))}
+              {overdueTasks.length > 3 && (
+                <Link href="/tasks?overdue_only=true">
+                  <Badge variant="outline" className="cursor-pointer">
+                    +{overdueTasks.length - 3} more
+                  </Badge>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function DashboardPage() {
   const { data: controlStats, isLoading: controlsLoading } = useControlStats()
   const { data: evidenceStats, isLoading: evidenceLoading } = useEvidenceStats()
@@ -328,13 +488,16 @@ export default function DashboardPage() {
   const { data: auditStats, isLoading: auditsLoading } = useAuditStats()
   const { data: frameworks, isLoading: frameworksLoading } = useFrameworks()
   const { data: heatmapData } = useRiskHeatmap()
+  const { data: taskStats, isLoading: tasksLoading } = useTaskStats()
+  const { data: overdueTasks } = useOverdueTasks()
+  const { data: recurringTasks } = useRecurringTasks()
 
   // Get gap analysis for the first framework with requirements
   const firstFrameworkId = frameworks?.[0]?.id || ''
   const { data: gapAnalysis } = useGapAnalysis(firstFrameworkId)
 
   const isLoading = controlsLoading || evidenceLoading || policiesLoading ||
-    risksLoading || vendorsLoading || assetsLoading || auditsLoading || frameworksLoading
+    risksLoading || vendorsLoading || assetsLoading || auditsLoading || frameworksLoading || tasksLoading
 
   if (isLoading) {
     return <Loading />
@@ -348,7 +511,7 @@ export default function DashboardPage() {
       />
 
       {/* Main Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Total Controls"
           value={controlStats?.total ?? 0}
@@ -374,6 +537,13 @@ export default function DashboardPage() {
           value={auditStats?.active ?? 0}
           description={`${auditStats?.open_requests ?? 0} open requests`}
           icon={ClipboardList}
+        />
+        <StatCard
+          title="Open Tasks"
+          value={(taskStats?.open ?? 0) + (taskStats?.in_progress ?? 0)}
+          description={`${taskStats?.overdue ?? 0} overdue`}
+          icon={ListTodo}
+          trend={taskStats?.due_today ? `${taskStats.due_today} due today` : undefined}
         />
       </div>
 
@@ -412,6 +582,17 @@ export default function DashboardPage() {
           <GapAnalysisSummary frameworks={[]} />
         )}
       </div>
+
+      {/* Task Workload */}
+      {taskStats && taskStats.total > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <TaskWorkloadOverview
+            stats={taskStats}
+            overdueTasks={overdueTasks ?? null}
+            recurringTasks={recurringTasks ?? null}
+          />
+        </div>
+      )}
 
       {/* Audit Overview */}
       {auditStats && auditStats.total > 0 && (

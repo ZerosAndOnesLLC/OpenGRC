@@ -2,7 +2,7 @@ use crate::cache::{org_cache_key, CacheClient};
 use crate::models::{
     Audit, AuditFinding, AuditRequest, AuditRequestResponse, AuditStats, AuditTypeCount,
     AuditWithStats, CreateAudit, CreateAuditFinding, CreateAuditRequest, CreateRequestResponse,
-    ListAuditsQuery, UpdateAudit, UpdateAuditFinding,
+    ListAuditsQuery, UpdateAudit, UpdateAuditFinding, AuditEvidenceItem, AuditEvidencePackage,
 };
 use crate::utils::{AppError, AppResult};
 use sqlx::PgPool;
@@ -440,6 +440,33 @@ impl AuditService {
         Ok(finding)
     }
 
+    /// Get a specific audit finding
+    pub async fn get_finding(
+        &self,
+        org_id: Uuid,
+        audit_id: Uuid,
+        finding_id: Uuid,
+    ) -> AppResult<AuditFinding> {
+        // Verify audit exists and belongs to org
+        self.get_audit(org_id, audit_id).await?;
+
+        let finding = sqlx::query_as::<_, AuditFinding>(
+            r#"
+            SELECT id, audit_id, finding_type, title, description, recommendation,
+                   control_ids, status, remediation_plan, remediation_due, created_at, updated_at
+            FROM audit_findings
+            WHERE id = $1 AND audit_id = $2
+            "#,
+        )
+        .bind(finding_id)
+        .bind(audit_id)
+        .fetch_optional(&self.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Finding not found".to_string()))?;
+
+        Ok(finding)
+    }
+
     /// Update an audit finding
     pub async fn update_finding(
         &self,
@@ -562,6 +589,135 @@ impl AuditService {
             .await?;
 
         Ok(stats)
+    }
+
+    // ==================== Evidence Packaging ====================
+
+    /// Get evidence package for an audit
+    /// Returns evidence linked to controls that map to the audit's framework requirements,
+    /// as well as evidence directly linked to audit request responses.
+    pub async fn get_evidence_package(
+        &self,
+        org_id: Uuid,
+        audit_id: Uuid,
+    ) -> AppResult<AuditEvidencePackage> {
+        // Get audit details
+        let audit = self.get_audit(org_id, audit_id).await?;
+
+        // Get framework name if audit has a framework
+        let framework_name: Option<String> = if let Some(framework_id) = audit.audit.framework_id {
+            sqlx::query_scalar("SELECT name FROM frameworks WHERE id = $1")
+                .bind(framework_id)
+                .fetch_optional(&self.db)
+                .await?
+        } else {
+            None
+        };
+
+        // Get evidence linked via controls mapped to the audit's framework requirements
+        let framework_evidence: Vec<(Uuid, String, Option<String>, String, String, Option<String>, Option<i64>, Option<String>, chrono::DateTime<chrono::Utc>, String)> =
+            if audit.audit.framework_id.is_some() {
+                sqlx::query_as(
+                    r#"
+                    SELECT DISTINCT e.id, e.title, e.description, e.evidence_type, e.source,
+                           e.file_path, e.file_size, e.mime_type, e.collected_at,
+                           c.code as control_code
+                    FROM evidence e
+                    JOIN evidence_control_links ecl ON e.id = ecl.evidence_id
+                    JOIN controls c ON ecl.control_id = c.id
+                    JOIN control_requirement_mappings crm ON c.id = crm.control_id
+                    JOIN framework_requirements fr ON crm.requirement_id = fr.id
+                    WHERE fr.framework_id = $1 AND e.organization_id = $2
+                    ORDER BY e.collected_at DESC
+                    "#,
+                )
+                .bind(audit.audit.framework_id)
+                .bind(org_id)
+                .fetch_all(&self.db)
+                .await?
+            } else {
+                vec![]
+            };
+
+        // Get evidence directly linked to audit request responses
+        let request_evidence: Vec<(Uuid, String, Option<String>, String, String, Option<String>, Option<i64>, Option<String>, chrono::DateTime<chrono::Utc>, String)> =
+            sqlx::query_as(
+                r#"
+                SELECT DISTINCT e.id, e.title, e.description, e.evidence_type, e.source,
+                       e.file_path, e.file_size, e.mime_type, e.collected_at,
+                       ar.title as request_title
+                FROM evidence e
+                JOIN audit_request_responses arr ON e.id = ANY(arr.evidence_ids)
+                JOIN audit_requests ar ON arr.audit_request_id = ar.id
+                WHERE ar.audit_id = $1 AND e.organization_id = $2
+                ORDER BY e.collected_at DESC
+                "#,
+            )
+            .bind(audit_id)
+            .bind(org_id)
+            .fetch_all(&self.db)
+            .await?;
+
+        // Combine and deduplicate evidence
+        let mut evidence_map: std::collections::HashMap<Uuid, AuditEvidenceItem> =
+            std::collections::HashMap::new();
+
+        for (id, title, desc, etype, source, path, size, mime, collected, control_code) in
+            framework_evidence
+        {
+            let entry = evidence_map.entry(id).or_insert_with(|| AuditEvidenceItem {
+                id,
+                title,
+                description: desc,
+                evidence_type: etype,
+                source,
+                file_path: path,
+                file_size: size,
+                mime_type: mime,
+                collected_at: collected,
+                linked_controls: vec![],
+                linked_requests: vec![],
+            });
+            if !entry.linked_controls.contains(&control_code) {
+                entry.linked_controls.push(control_code);
+            }
+        }
+
+        for (id, title, desc, etype, source, path, size, mime, collected, request_title) in
+            request_evidence
+        {
+            let entry = evidence_map.entry(id).or_insert_with(|| AuditEvidenceItem {
+                id,
+                title,
+                description: desc,
+                evidence_type: etype,
+                source,
+                file_path: path,
+                file_size: size,
+                mime_type: mime,
+                collected_at: collected,
+                linked_controls: vec![],
+                linked_requests: vec![],
+            });
+            if !entry.linked_requests.contains(&request_title) {
+                entry.linked_requests.push(request_title);
+            }
+        }
+
+        let evidence: Vec<AuditEvidenceItem> = evidence_map.into_values().collect();
+        let total_file_size: i64 = evidence.iter().filter_map(|e| e.file_size).sum();
+
+        Ok(AuditEvidencePackage {
+            audit_id,
+            audit_name: audit.audit.name,
+            framework_name,
+            period_start: audit.audit.period_start,
+            period_end: audit.audit.period_end,
+            evidence_count: evidence.len(),
+            total_file_size,
+            evidence,
+            generated_at: chrono::Utc::now(),
+        })
     }
 
     // ==================== Cache Invalidation ====================
