@@ -1395,13 +1395,13 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 - [ ] Email/Slack notifications
 
 #### 3.6 Multi-Framework Support
-- [ ] ISO 27001:2022
-- [ ] HIPAA
-- [ ] PCI DSS 4.0
-- [ ] GDPR
-- [ ] NIST CSF
-- [ ] SOX ITGC
-- [ ] Cross-framework mapping (test once, satisfy many)
+- [x] ISO 27001:2022
+- [x] HIPAA
+- [x] PCI DSS 4.0
+- [x] GDPR
+- [x] NIST CSF
+- [x] SOX ITGC
+- [x] Cross-framework mapping (test once, satisfy many)
 
 ### Phase 4: Intelligence & Scale
 **Goal: AI-powered insights and enterprise scale**
