@@ -1421,13 +1421,13 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 - [x] Custom report builder
 - [x] Executive dashboards
 
-#### 4.3 Enterprise Features
-- [ ] SSO/SAML configuration
-- [ ] SCIM user provisioning
-- [ ] Custom roles & permissions
-- [ ] Audit log exports (SIEM integration)
-- [ ] API rate limiting & quotas
-- [ ] White-labeling
+#### 4.3 Enterprise Features (Complete - v1.20.0)
+- [x] SSO/SAML configuration (SAML 2.0 SP, metadata generation, domain verification)
+- [x] SCIM user provisioning (SCIM 2.0 API, token management, operation logging)
+- [x] Custom roles & permissions (80+ granular permissions, custom roles, system templates)
+- [x] Audit log exports (SIEM integration - CEF, LEEF, JSON, Syslog formats)
+- [x] API rate limiting & quotas (Redis-based sliding window, tier-based limits)
+- [x] White-labeling (custom branding, colors, logos, custom domains)
 
 #### 4.4 Collaboration
 - [ ] Comments & mentions

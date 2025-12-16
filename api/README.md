@@ -758,6 +758,112 @@ Structured JSON logging is enabled by default:
 - **Cache-first patterns** - Check cache before hitting database
 - **Multi-tenant isolation** - Organization-scoped queries and cache keys
 
+## Enterprise Features (v1.20.0)
+
+OpenGRC includes enterprise-grade features for organizations that need advanced security, compliance, and customization:
+
+### Role-Based Access Control (RBAC)
+
+- **Custom Roles**: Create custom roles with granular permissions
+- **Permission Matrix**: 80+ permissions across controls, evidence, policies, risks, vendors, assets, audits, integrations, and more
+- **System Roles**: Pre-built roles (Owner, Admin, Compliance Manager, Contributor, Viewer, Auditor)
+- **User Role Assignment**: Assign multiple roles to users
+
+**API Endpoints**:
+- `GET /api/v1/permissions` - List all available permissions
+- `GET /api/v1/permissions/grouped` - List permissions grouped by resource
+- `GET /api/v1/roles` - List roles with permissions and user counts
+- `POST /api/v1/roles` - Create custom role
+- `PUT /api/v1/roles/:id` - Update role
+- `DELETE /api/v1/roles/:id` - Delete custom role
+- `GET /api/v1/users/:user_id/roles` - Get user's roles
+- `PUT /api/v1/users/:user_id/roles` - Assign roles to user
+- `GET /api/v1/auth/permissions` - Get current user's permissions
+
+### SSO/SAML Configuration
+
+- **SAML 2.0 Support**: Configure SAML Identity Provider integration
+- **OIDC Support**: OpenID Connect provider support (planned)
+- **Domain Verification**: Verify email domains for SSO enforcement
+- **Auto-Provisioning**: Automatically create users on first SSO login
+- **Attribute Mapping**: Map IdP attributes to OpenGRC user fields
+
+**API Endpoints**:
+- `GET /api/v1/sso/config` - Get SSO configuration
+- `POST /api/v1/sso/config` - Create SSO configuration
+- `PUT /api/v1/sso/config` - Update SSO configuration
+- `DELETE /api/v1/sso/config` - Delete SSO configuration
+- `POST /api/v1/sso/domains` - Add domain for SSO
+- `POST /api/v1/sso/domains/:domain_id/verify` - Verify domain ownership
+- `GET /api/v1/sso/saml/metadata` - Get SAML SP metadata
+
+### SCIM User Provisioning
+
+- **SCIM 2.0 API**: Automatic user provisioning from identity providers
+- **User Lifecycle**: Create, update, deactivate users automatically
+- **Group Sync**: Sync IdP groups to OpenGRC roles
+- **Bearer Token Auth**: Secure SCIM endpoint with rotating tokens
+
+**API Endpoints**:
+- `GET /api/v1/scim/config` - Get SCIM configuration
+- `POST /api/v1/scim/config` - Create SCIM configuration
+- `PUT /api/v1/scim/config` - Update SCIM configuration
+- `POST /api/v1/scim/token` - Generate new SCIM bearer token
+- `DELETE /api/v1/scim/token` - Revoke SCIM token
+
+### Audit Logs & SIEM Integration
+
+- **Activity Logging**: Comprehensive activity logs for all actions
+- **Log Export**: Export logs in JSON, CEF, LEEF, or Syslog format
+- **SIEM Integration**: Configure webhook or S3 export to SIEM platforms
+- **Severity Filtering**: Filter logs by severity level
+
+**API Endpoints**:
+- `GET /api/v1/audit-logs` - Query activity logs with filters
+- `GET /api/v1/audit-exports` - List audit export configurations
+- `POST /api/v1/audit-exports` - Create audit export (webhook/S3)
+- `DELETE /api/v1/audit-exports/:id` - Delete audit export configuration
+
+### API Rate Limiting
+
+- **Redis-Based Rate Limiting**: Distributed rate limiting using Redis/Valkey
+- **Tier-Based Limits**: Different limits for Free, Pro, and Enterprise plans
+- **Rate Limit Headers**: Standard `X-RateLimit-*` headers in responses
+- **429 Too Many Requests**: Proper rate limit exceeded responses
+
+**API Endpoints**:
+- `GET /api/v1/usage/rate-limit` - Get current rate limit status
+- `GET /api/v1/usage/stats` - Get usage statistics
+
+### White-Labeling & Branding
+
+- **Custom Branding**: Logo, colors, fonts, and theme customization
+- **Custom CSS**: Advanced CSS customization for enterprise needs
+- **Email Branding**: Custom email templates and logos
+- **PDF Branding**: Custom headers, footers, and cover pages for reports
+- **Custom Domain**: Use your own domain with SSL
+
+**API Endpoints**:
+- `GET /api/v1/branding` - Get branding configuration
+- `PUT /api/v1/branding` - Update branding configuration
+- `POST /api/v1/branding/domain` - Set custom domain
+
+### API Keys
+
+- **Programmatic Access**: Create API keys for integrations
+- **Scoped Access**: Limit API keys to specific permissions
+- **Rate Limits**: Per-key rate limits
+- **Key Management**: Create, list, revoke API keys
+
+**API Endpoints**:
+- `GET /api/v1/api-keys` - List API keys
+- `POST /api/v1/api-keys` - Create new API key
+- `POST /api/v1/api-keys/:id/revoke` - Revoke API key
+
+### Enterprise Stats
+
+- `GET /api/v1/enterprise/stats` - Get enterprise feature usage statistics
+
 ## Next Steps
 
 1. ~~Implement database migrations for all entities~~ ✓
@@ -773,11 +879,12 @@ Structured JSON logging is enabled by default:
 11. ~~Implement AWS integration provider~~ ✓ (v1.6.0)
 12. ~~Implement GitHub integration provider~~ ✓ (v1.8.0)
 13. ~~Implement Jira integration provider~~ ✓ (v1.8.0)
-14. Build scheduled sync job worker (cron-based)
-15. Implement additional integration providers (Okta, GCP, Azure, etc.)
-16. Add comprehensive tests (unit, integration, e2e)
-17. Add OpenAPI/Swagger documentation
-18. Set up CI/CD pipelines
+14. ~~Implement Enterprise Features (RBAC, SSO, SCIM, Audit Exports, Branding)~~ ✓ (v1.20.0)
+15. Build scheduled sync job worker (cron-based)
+16. Implement additional integration providers (Okta, GCP, Azure, etc.)
+17. Add comprehensive tests (unit, integration, e2e)
+18. Add OpenAPI/Swagger documentation
+19. Set up CI/CD pipelines
 
 ## Contributing
 

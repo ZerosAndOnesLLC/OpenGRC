@@ -7,6 +7,7 @@ pub mod auth;
 pub mod aws;
 pub mod controls;
 pub mod control_test_automation;
+pub mod enterprise;
 pub mod evidence;
 pub mod evidence_automation;
 pub mod frameworks;
@@ -379,6 +380,52 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/analytics/executive/widgets", post(analytics::create_dashboard_widget))
         .route("/api/v1/analytics/executive/widgets/:widget_id", put(analytics::update_dashboard_widget))
         .route("/api/v1/analytics/executive/widgets/:widget_id", delete(analytics::delete_dashboard_widget))
+        // Enterprise Features - Permissions
+        .route("/api/v1/permissions", get(enterprise::list_permissions))
+        .route("/api/v1/permissions/grouped", get(enterprise::list_permissions_grouped))
+        // Enterprise Features - Roles (RBAC)
+        .route("/api/v1/roles", get(enterprise::list_roles))
+        .route("/api/v1/roles", post(enterprise::create_role))
+        .route("/api/v1/roles/:id", get(enterprise::get_role))
+        .route("/api/v1/roles/:id", put(enterprise::update_role))
+        .route("/api/v1/roles/:id", delete(enterprise::delete_role))
+        // Enterprise Features - User Roles
+        .route("/api/v1/users/:user_id/roles", get(enterprise::get_user_roles))
+        .route("/api/v1/users/:user_id/roles", put(enterprise::assign_user_roles))
+        .route("/api/v1/auth/permissions", get(enterprise::get_my_permissions))
+        // Enterprise Features - SSO/SAML
+        .route("/api/v1/sso/config", get(enterprise::get_sso_configuration))
+        .route("/api/v1/sso/config", post(enterprise::create_sso_configuration))
+        .route("/api/v1/sso/config", put(enterprise::update_sso_configuration))
+        .route("/api/v1/sso/config", delete(enterprise::delete_sso_configuration))
+        .route("/api/v1/sso/domains", post(enterprise::add_sso_domain))
+        .route("/api/v1/sso/domains/:domain_id/verify", post(enterprise::verify_sso_domain))
+        .route("/api/v1/sso/saml/metadata", get(enterprise::get_saml_metadata))
+        // Enterprise Features - SCIM
+        .route("/api/v1/scim/config", get(enterprise::get_scim_configuration))
+        .route("/api/v1/scim/config", post(enterprise::create_scim_configuration))
+        .route("/api/v1/scim/config", put(enterprise::update_scim_configuration))
+        .route("/api/v1/scim/token", post(enterprise::generate_scim_token))
+        .route("/api/v1/scim/token", delete(enterprise::revoke_scim_token))
+        // Enterprise Features - Audit Logs
+        .route("/api/v1/audit-logs", get(enterprise::list_activity_logs))
+        // Enterprise Features - Audit Exports (SIEM)
+        .route("/api/v1/audit-exports", get(enterprise::list_audit_export_configurations))
+        .route("/api/v1/audit-exports", post(enterprise::create_audit_export_configuration))
+        .route("/api/v1/audit-exports/:id", delete(enterprise::delete_audit_export_configuration))
+        // Enterprise Features - Branding (White-labeling)
+        .route("/api/v1/branding", get(enterprise::get_branding))
+        .route("/api/v1/branding", put(enterprise::update_branding))
+        .route("/api/v1/branding/domain", post(enterprise::set_custom_domain))
+        // Enterprise Features - API Keys
+        .route("/api/v1/api-keys", get(enterprise::list_api_keys))
+        .route("/api/v1/api-keys", post(enterprise::create_api_key))
+        .route("/api/v1/api-keys/:id/revoke", post(enterprise::revoke_api_key))
+        // Enterprise Features - Usage & Rate Limiting
+        .route("/api/v1/usage/rate-limit", get(enterprise::get_rate_limit_status))
+        .route("/api/v1/usage/stats", get(enterprise::get_usage_stats))
+        // Enterprise Features - Stats
+        .route("/api/v1/enterprise/stats", get(enterprise::get_enterprise_stats))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,

@@ -13,6 +13,7 @@ pub enum AppError {
     Forbidden(String),
     NotFound(String),
     Conflict(String),
+    TooManyRequests(String),
     InternalServerError(String),
     DatabaseError(sqlx::Error),
     RedisError(redis::RedisError),
@@ -29,6 +30,7 @@ impl fmt::Display for AppError {
             AppError::Forbidden(msg) => write!(f, "Forbidden: {}", msg),
             AppError::NotFound(msg) => write!(f, "Not Found: {}", msg),
             AppError::Conflict(msg) => write!(f, "Conflict: {}", msg),
+            AppError::TooManyRequests(msg) => write!(f, "Too Many Requests: {}", msg),
             AppError::InternalServerError(msg) => write!(f, "Internal Server Error: {}", msg),
             AppError::DatabaseError(err) => write!(f, "Database Error: {}", err),
             AppError::RedisError(err) => write!(f, "Redis Error: {}", err),
@@ -49,6 +51,7 @@ impl IntoResponse for AppError {
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
             AppError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             AppError::DatabaseError(err) => {
                 tracing::error!("Database error: {:?}", err);

@@ -1,6 +1,7 @@
 pub mod asset;
 pub mod audit;
 pub mod control;
+pub mod enterprise;
 pub mod evidence;
 pub mod framework;
 pub mod integration;
@@ -125,4 +126,38 @@ pub use task::{
     CreateTask, UpdateTask, CreateTaskComment, ListTasksQuery, TaskStats,
     TaskTypeCount, TaskPriorityCount, TaskAssigneeCount, RecurrencePattern,
     TaskRecurrenceHistory,
+};
+
+pub use enterprise::{
+    // Permissions
+    Permission, PermissionGroup,
+    // Roles
+    Role, RoleWithPermissions, CreateRole, UpdateRole, RolePermission,
+    // User Roles
+    UserRole, UserWithRoles, AssignRolesRequest,
+    // SSO/SAML
+    SsoConfiguration, SsoConfigurationResponse, CreateSsoConfiguration, UpdateSsoConfiguration,
+    SsoDomain, AddSsoDomain, SsoSession, SamlSpMetadata,
+    // SCIM
+    ScimConfiguration, ScimConfigurationResponse, CreateScimConfiguration, UpdateScimConfiguration,
+    GenerateScimTokenResponse, ScimUser, ScimGroup,
+    ScimListResponse, ScimUserResource, ScimName, ScimEmail, ScimGroupRef,
+    ScimGroupResource, ScimMemberRef, ScimMeta, ScimError, ScimPatchRequest, ScimPatchOperation,
+    // Audit Exports
+    AuditExportConfiguration, AuditExportConfigurationResponse,
+    CreateAuditExportConfiguration, UpdateAuditExportConfiguration,
+    ActivityLog, ActivityLogWithUser, CreateActivityLog, ListActivityLogsQuery,
+    ExportActivityLogsRequest, CefEvent, LeefEvent,
+    // Branding
+    BrandingConfiguration, UpdateBrandingConfiguration, SetCustomDomainRequest,
+    DomainVerification, DomainVerificationInstructions,
+    // API Keys
+    ApiKey, ApiKeyResponse, CreateApiKey, CreateApiKeyResponse, RevokeApiKeyRequest,
+    ApiKeyUsageDaily,
+    // Rate Limiting
+    RateLimitConfig, RateLimitStatus, UsageStats,
+    // Usage
+    OrganizationUsageDaily, OrganizationUsageSummary,
+    // Stats
+    EnterpriseStats,
 };
