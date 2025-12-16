@@ -1622,6 +1622,277 @@ export interface DashboardStats {
   audits: AuditStats
 }
 
+// ==================== Analytics ====================
+
+export interface ComplianceSnapshot {
+  id: string
+  organization_id: string
+  snapshot_type: string
+  captured_at: string
+  total_controls: number
+  implemented_controls: number
+  in_progress_controls: number
+  not_implemented_controls: number
+  not_applicable_controls: number
+  implementation_percentage: number
+  total_frameworks: number
+  total_requirements: number
+  covered_requirements: number
+  coverage_percentage: number
+  total_risks: number
+  high_risks: number
+  medium_risks: number
+  low_risks: number
+  average_risk_score: number | null
+  total_policies: number
+  published_policies: number
+  pending_policies: number
+  total_evidence: number
+  expiring_evidence: number
+  expired_evidence: number
+  total_vendors: number
+  high_risk_vendors: number
+  overdue_tasks: number
+  metadata: Record<string, unknown> | null
+}
+
+export interface ComplianceTrendPoint {
+  date: string
+  implementation_percentage: number
+  coverage_percentage: number
+  average_risk_score: number | null
+  high_risks: number
+}
+
+export interface ComplianceTrendResponse {
+  current: ComplianceSnapshot | null
+  previous: ComplianceSnapshot | null
+  trend_points: ComplianceTrendPoint[]
+  changes: {
+    implementation_change: number
+    coverage_change: number
+    risk_change: number | null
+  }
+}
+
+export interface RiskPrediction {
+  id: string
+  risk_id: string
+  organization_id: string
+  predicted_score: number
+  confidence: number
+  time_horizon_days: number
+  contributing_factors: Record<string, unknown> | null
+  recommended_actions: string[] | null
+  predicted_at: string
+  expires_at: string
+}
+
+export interface RiskPredictionWithDetails {
+  id: string
+  risk_id: string
+  organization_id: string
+  predicted_score: number
+  confidence: number
+  time_horizon_days: number
+  contributing_factors: Record<string, unknown> | null
+  recommended_actions: string[] | null
+  predicted_at: string
+  expires_at: string
+  risk_code: string
+  risk_title: string
+  current_score: number | null
+  risk_status: string
+}
+
+export interface RiskPredictionSummary {
+  total_predictions: number
+  high_confidence_count: number
+  increasing_risk_count: number
+  decreasing_risk_count: number
+  stable_risk_count: number
+  average_confidence: number
+}
+
+export interface RiskPredictionFactor {
+  id: string
+  organization_id: string | null
+  factor_name: string
+  factor_weight: number
+  description: string | null
+  is_system: boolean
+}
+
+export interface IndustryBenchmark {
+  id: string
+  industry_name: string
+  industry_code: string | null
+  framework_id: string | null
+  avg_implementation_rate: number
+  median_implementation_rate: number
+  top_quartile_rate: number
+  avg_coverage_rate: number
+  avg_risk_score: number | null
+  sample_size: number
+  data_period_start: string
+  data_period_end: string
+  region: string | null
+}
+
+export interface BenchmarkComparison {
+  id: string
+  organization_id: string
+  benchmark_id: string
+  compared_at: string
+  org_implementation_rate: number
+  org_coverage_rate: number
+  org_risk_score: number | null
+  implementation_percentile: number | null
+  coverage_percentile: number | null
+  risk_percentile: number | null
+  improvement_areas: string[] | null
+  strengths: string[] | null
+}
+
+export interface BenchmarkComparisonWithDetails {
+  id: string
+  organization_id: string
+  benchmark_id: string
+  compared_at: string
+  org_implementation_rate: number
+  org_coverage_rate: number
+  org_risk_score: number | null
+  implementation_percentile: number | null
+  coverage_percentile: number | null
+  risk_percentile: number | null
+  improvement_areas: string[] | null
+  strengths: string[] | null
+  industry_name: string
+  industry_code: string | null
+  avg_implementation_rate: number
+  median_implementation_rate: number
+  top_quartile_rate: number
+  avg_coverage_rate: number
+  avg_risk_score: number | null
+  sample_size: number
+}
+
+export interface SavedReport {
+  id: string
+  organization_id: string
+  created_by: string
+  name: string
+  description: string | null
+  report_type: string
+  config: Record<string, unknown>
+  is_scheduled: boolean
+  schedule_cron: string | null
+  last_run_at: string | null
+  next_run_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateSavedReport {
+  name: string
+  description?: string
+  report_type: string
+  config: Record<string, unknown>
+  is_scheduled?: boolean
+  schedule_cron?: string
+}
+
+export interface UpdateSavedReport {
+  name?: string
+  description?: string
+  config?: Record<string, unknown>
+  is_scheduled?: boolean
+  schedule_cron?: string
+}
+
+export interface ReportExecution {
+  id: string
+  report_id: string
+  started_at: string
+  completed_at: string | null
+  status: string
+  output_format: string | null
+  output_path: string | null
+  error_message: string | null
+  row_count: number | null
+}
+
+export interface ReportTemplate {
+  id: string
+  name: string
+  description: string | null
+  report_type: string
+  default_config: Record<string, unknown>
+  required_permissions: string[] | null
+  category: string | null
+}
+
+export interface ExecutiveMetric {
+  id: string
+  organization_id: string
+  metric_name: string
+  metric_value: number
+  metric_unit: string | null
+  trend_direction: string | null
+  trend_percentage: number | null
+  period_start: string
+  period_end: string
+  category: string | null
+  target_value: number | null
+  threshold_warning: number | null
+  threshold_critical: number | null
+}
+
+export interface DashboardWidget {
+  id: string
+  organization_id: string
+  user_id: string | null
+  widget_type: string
+  title: string
+  config: Record<string, unknown>
+  position_x: number
+  position_y: number
+  width: number
+  height: number
+  is_visible: boolean
+  refresh_interval_seconds: number | null
+  dashboard_type: string
+}
+
+export interface CreateDashboardWidget {
+  widget_type: string
+  title: string
+  config?: Record<string, unknown>
+  position_x?: number
+  position_y?: number
+  width?: number
+  height?: number
+  dashboard_type?: string
+}
+
+export interface UpdateDashboardWidget {
+  title?: string
+  config?: Record<string, unknown>
+  position_x?: number
+  position_y?: number
+  width?: number
+  height?: number
+  is_visible?: boolean
+  refresh_interval_seconds?: number
+}
+
+export interface ExecutiveDashboard {
+  metrics: ExecutiveMetric[]
+  widgets: DashboardWidget[]
+  snapshot: ComplianceSnapshot | null
+  trends: ComplianceTrendResponse
+}
+
 // ==================== Utility Types ====================
 
 export function getRiskLevel(score: number | null): 'critical' | 'high' | 'medium' | 'low' | 'unknown' {

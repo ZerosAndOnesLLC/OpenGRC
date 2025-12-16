@@ -1407,19 +1407,19 @@ POST   /api/v1/integrations/:id/sync/partial # Trigger partial sync
 **Goal: AI-powered insights and enterprise scale**
 
 #### 4.1 AI Features
-- [ ] Policy drafting assistant
-- [ ] Evidence summarization
-- [ ] Gap analysis recommendations
-- [ ] Risk scoring suggestions
-- [ ] Natural language search
-- [ ] Audit preparation assistant
+- [x] Policy drafting assistant
+- [x] Evidence summarization
+- [x] Gap analysis recommendations
+- [x] Risk scoring suggestions
+- [x] Natural language search
+- [x] Audit preparation assistant
 
 #### 4.2 Advanced Analytics
-- [ ] Compliance trend analysis
-- [ ] Predictive risk scoring
-- [ ] Benchmark comparisons
-- [ ] Custom report builder
-- [ ] Executive dashboards
+- [x] Compliance trend analysis
+- [x] Predictive risk scoring
+- [x] Benchmark comparisons
+- [x] Custom report builder
+- [x] Executive dashboards
 
 #### 4.3 Enterprise Features
 - [ ] SSO/SAML configuration

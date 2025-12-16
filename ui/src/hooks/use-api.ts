@@ -604,3 +604,81 @@ export function useTaskRecurrenceHistory(taskId: string) {
     { enabled: !!taskId }
   )
 }
+
+// ==================== Analytics hooks ====================
+
+// Compliance Trends
+export function useComplianceSnapshot() {
+  return useApi<{ data: import('@/types').ComplianceSnapshot | null }>('/analytics/snapshots/current')
+}
+
+export function useComplianceTrends(days?: number) {
+  const query = days ? `?days=${days}` : ''
+  return useApi<{ data: import('@/types').ComplianceTrendResponse }>(`/analytics/trends${query}`)
+}
+
+// Risk Predictions
+export function useRiskPredictions() {
+  return useApi<{ data: import('@/types').RiskPredictionWithDetails[] }>('/analytics/predictions')
+}
+
+export function useRiskPrediction(riskId: string) {
+  return useApi<{ data: import('@/types').RiskPrediction | null }>(
+    `/analytics/predictions/${riskId}`,
+    { enabled: !!riskId }
+  )
+}
+
+export function useRiskPredictionSummary() {
+  return useApi<{ data: import('@/types').RiskPredictionSummary }>('/analytics/predictions/summary')
+}
+
+export function useRiskPredictionFactors() {
+  return useApi<{ data: import('@/types').RiskPredictionFactor[] }>('/analytics/predictions/factors')
+}
+
+// Benchmarks
+export function useAvailableBenchmarks() {
+  return useApi<{ data: import('@/types').IndustryBenchmark[] }>('/analytics/benchmarks')
+}
+
+export function useBenchmarkComparison(benchmarkId: string) {
+  return useApi<{ data: import('@/types').BenchmarkComparisonWithDetails }>(
+    `/analytics/benchmarks/${benchmarkId}/compare`,
+    { enabled: !!benchmarkId }
+  )
+}
+
+export function useLatestBenchmarkComparison() {
+  return useApi<{ data: import('@/types').BenchmarkComparisonWithDetails | null }>('/analytics/benchmarks/comparison')
+}
+
+// Saved Reports
+export function useSavedReports() {
+  return useApi<{ data: import('@/types').SavedReport[] }>('/analytics/reports')
+}
+
+export function useSavedReport(reportId: string) {
+  return useApi<{ data: import('@/types').SavedReport }>(
+    `/analytics/reports/${reportId}`,
+    { enabled: !!reportId }
+  )
+}
+
+export function useReportTemplates() {
+  return useApi<{ data: import('@/types').ReportTemplate[] }>('/analytics/reports/templates')
+}
+
+// Executive Dashboard
+export function useExecutiveMetrics() {
+  return useApi<{ data: import('@/types').ExecutiveMetric[] }>('/analytics/executive/metrics')
+}
+
+export function useDashboardWidgets(dashboardType?: string) {
+  const query = dashboardType ? `?dashboard_type=${dashboardType}` : ''
+  return useApi<{ data: import('@/types').DashboardWidget[] }>(`/analytics/executive/widgets${query}`)
+}
+
+export function useExecutiveDashboard() {
+  return useApi<{ data: import('@/types').ExecutiveDashboard }>('/analytics/executive')
+}

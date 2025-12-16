@@ -16,6 +16,10 @@ import {
   BarChart3,
   Settings,
   Puzzle,
+  TrendingUp,
+  Target,
+  Scale,
+  FileBarChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
@@ -33,6 +37,14 @@ const secondaryNavigation = [
   { name: "Vendors", href: "/vendors/", icon: Users },
   { name: "Assets", href: "/assets/", icon: HardDrive },
   { name: "Access Reviews", href: "/access-reviews/", icon: UserCheck },
+]
+
+const analyticsNavigation = [
+  { name: "Executive Dashboard", href: "/analytics/", icon: LayoutDashboard },
+  { name: "Compliance Trends", href: "/analytics/trends/", icon: TrendingUp },
+  { name: "Risk Predictions", href: "/analytics/predictions/", icon: Target },
+  { name: "Benchmarks", href: "/analytics/benchmarks/", icon: Scale },
+  { name: "Report Builder", href: "/analytics/reports/", icon: FileBarChart },
 ]
 
 const bottomNavigation = [
@@ -89,6 +101,31 @@ export function Sidebar() {
         <div className="space-y-1">
           {secondaryNavigation.map((item) => {
             const isActive = pathname === item.href
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                {item.name}
+              </Link>
+            )
+          })}
+        </div>
+
+        <Separator className="my-4" />
+
+        {/* Analytics Navigation */}
+        <div className="space-y-1">
+          <span className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Analytics</span>
+          {analyticsNavigation.map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/analytics/' && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.name}

@@ -1,4 +1,6 @@
 pub mod access_review;
+pub mod ai;
+pub mod analytics;
 pub mod asset;
 pub mod audit;
 pub mod aws;
@@ -27,6 +29,8 @@ use crate::storage::StorageClient;
 use crate::utils::EncryptionService;
 
 pub use access_review::AccessReviewService;
+pub use ai::AiService;
+pub use analytics::AnalyticsService;
 pub use asset::AssetService;
 pub use audit::AuditService;
 pub use aws::AwsService;
@@ -71,6 +75,8 @@ pub struct AppServices {
     pub questionnaire: QuestionnaireService,
     pub soc2_parser: Soc2ParserService,
     pub access_review: AccessReviewService,
+    pub ai: AiService,
+    pub analytics: AnalyticsService,
 }
 
 impl AppServices {
@@ -98,7 +104,7 @@ impl AppServices {
 
         // Initialize OAuth service from environment
         let oauth = OAuthService::from_env(oauth_redirect_base_url);
-        let integration = IntegrationService::new(db.clone(), cache.clone(), encryption, oauth);
+        let integration = IntegrationService::new(db.clone(), cache.clone(), encryption.clone(), oauth);
 
         // Register integration providers
         integration.register_provider(Box::new(AwsProvider::new())).await;
@@ -137,6 +143,12 @@ impl AppServices {
         // Access review service
         let access_review = AccessReviewService::new(db.clone(), cache.clone());
 
-        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, task, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review }
+        // AI service
+        let ai = AiService::new(db.clone(), cache.clone(), encryption);
+
+        // Analytics service
+        let analytics = AnalyticsService::new(db.clone(), cache.clone());
+
+        Self { db, cache, storage, search, framework, control, evidence, policy, risk, vendor, asset, audit, task, reports, pdf, notification, integration, aws, evidence_automation, control_test_automation, questionnaire, soc2_parser, access_review, ai, analytics }
     }
 }

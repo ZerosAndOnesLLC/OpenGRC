@@ -1,4 +1,6 @@
 pub mod access_reviews;
+pub mod ai;
+pub mod analytics;
 pub mod assets;
 pub mod audits;
 pub mod auth;
@@ -325,6 +327,58 @@ pub fn create_router(services: Arc<AppServices>, auth_state: Arc<AuthState>, cor
         .route("/api/v1/tasks/:id/resume", post(tasks::resume_recurring_task))
         .route("/api/v1/tasks/:task_id/comments", get(tasks::list_comments))
         .route("/api/v1/tasks/:task_id/comments", post(tasks::add_comment))
+        // AI Assistant routes
+        .route("/api/v1/ai/config", get(ai::get_configuration))
+        .route("/api/v1/ai/config", post(ai::save_configuration))
+        .route("/api/v1/ai/toggle", post(ai::toggle_ai))
+        .route("/api/v1/ai/stats", get(ai::get_stats))
+        // AI Policy Drafting
+        .route("/api/v1/ai/policy/draft", post(ai::draft_policy))
+        .route("/api/v1/ai/policy/drafts", get(ai::list_policy_drafts))
+        .route("/api/v1/ai/policy/drafts/:draft_id/accept", post(ai::accept_policy_draft))
+        // AI Evidence Summarization
+        .route("/api/v1/ai/evidence/summarize", post(ai::summarize_evidence))
+        .route("/api/v1/ai/evidence/:evidence_id/summary", get(ai::get_evidence_summary))
+        // AI Gap Analysis
+        .route("/api/v1/ai/gap-analysis", post(ai::get_gap_recommendations))
+        .route("/api/v1/ai/gap-analysis/:framework_id", get(ai::list_gap_recommendations))
+        // AI Risk Scoring
+        .route("/api/v1/ai/risk/score", post(ai::suggest_risk_scoring))
+        .route("/api/v1/ai/risk/:risk_id/assessment", get(ai::get_risk_assessment))
+        .route("/api/v1/ai/risk/:risk_id/assessment/:assessment_id/accept", post(ai::accept_risk_assessment))
+        // AI Natural Language Search
+        .route("/api/v1/ai/search", post(ai::natural_language_search))
+        // AI Audit Preparation
+        .route("/api/v1/ai/audit/prepare", post(ai::prepare_audit))
+        .route("/api/v1/ai/audit/:audit_id/preparation", get(ai::get_audit_preparation))
+        // Analytics - Compliance Trends
+        .route("/api/v1/analytics/snapshots", post(analytics::capture_snapshot))
+        .route("/api/v1/analytics/snapshots/current", get(analytics::get_current_snapshot))
+        .route("/api/v1/analytics/trends", get(analytics::get_compliance_trends))
+        // Analytics - Risk Predictions
+        .route("/api/v1/analytics/predictions", get(analytics::get_risk_predictions))
+        .route("/api/v1/analytics/predictions/summary", get(analytics::get_risk_prediction_summary))
+        .route("/api/v1/analytics/predictions/factors", get(analytics::get_prediction_factors))
+        .route("/api/v1/analytics/predictions/:risk_id", get(analytics::get_risk_prediction))
+        .route("/api/v1/analytics/predictions/:risk_id/recompute", post(analytics::recompute_risk_prediction))
+        // Analytics - Benchmarks
+        .route("/api/v1/analytics/benchmarks", get(analytics::get_available_benchmarks))
+        .route("/api/v1/analytics/benchmarks/comparison", get(analytics::get_latest_benchmark_comparison))
+        .route("/api/v1/analytics/benchmarks/:benchmark_id/compare", post(analytics::compare_to_benchmark))
+        // Analytics - Custom Reports
+        .route("/api/v1/analytics/reports", get(analytics::list_saved_reports))
+        .route("/api/v1/analytics/reports", post(analytics::create_saved_report))
+        .route("/api/v1/analytics/reports/templates", get(analytics::get_report_templates))
+        .route("/api/v1/analytics/reports/:report_id", get(analytics::get_saved_report))
+        .route("/api/v1/analytics/reports/:report_id", put(analytics::update_saved_report))
+        .route("/api/v1/analytics/reports/:report_id", delete(analytics::delete_saved_report))
+        // Analytics - Executive Dashboard
+        .route("/api/v1/analytics/executive", get(analytics::get_executive_dashboard))
+        .route("/api/v1/analytics/executive/metrics", get(analytics::get_executive_metrics))
+        .route("/api/v1/analytics/executive/widgets", get(analytics::get_dashboard_widgets))
+        .route("/api/v1/analytics/executive/widgets", post(analytics::create_dashboard_widget))
+        .route("/api/v1/analytics/executive/widgets/:widget_id", put(analytics::update_dashboard_widget))
+        .route("/api/v1/analytics/executive/widgets/:widget_id", delete(analytics::delete_dashboard_widget))
         .layer(middleware::from_fn_with_state(
             auth_state.clone(),
             auth_middleware,
