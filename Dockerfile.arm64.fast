@@ -1,0 +1,31 @@
+############################################
+# Fast Build Dockerfile (ARM64)
+# Assumes binary is pre-built on host
+############################################
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies only
+RUN apt-get update && apt upgrade -y && apt-get install -y --no-install-recommends \
+    libssl3 \
+    libpq5 \
+    ca-certificates \
+    curl \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user
+RUN useradd -m -s /bin/bash svc_opengrc
+WORKDIR /home/svc_opsgrc
+
+# Copy the pre-built binary from host
+COPY ./target/release/opengrc-api ./opengrc-api
+
+# Set ownership
+RUN chown -R svc_opengrc:svc_opengrc /home/svc_opengrc
+
+# Run as non-root
+USER svc_opengrc
+EXPOSE 7001
+ENV RUST_LOG=debug
+CMD ["./opengrc-api"]
