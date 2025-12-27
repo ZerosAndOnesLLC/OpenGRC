@@ -5,7 +5,7 @@
 -- ENTITY COMMENTS (Generic comments for all entities)
 -- =====================================================
 
-CREATE TABLE entity_comments (
+CREATE TABLE IF NOT EXISTS entity_comments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     entity_type VARCHAR(50) NOT NULL, -- control, evidence, policy, risk, audit, vendor, asset, audit_request, audit_finding
@@ -22,19 +22,20 @@ CREATE TABLE entity_comments (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_entity_comments_org ON entity_comments(organization_id);
-CREATE INDEX idx_entity_comments_entity ON entity_comments(entity_type, entity_id);
-CREATE INDEX idx_entity_comments_user ON entity_comments(user_id);
-CREATE INDEX idx_entity_comments_parent ON entity_comments(parent_comment_id) WHERE parent_comment_id IS NOT NULL;
-CREATE INDEX idx_entity_comments_created ON entity_comments(entity_type, entity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_entity_comments_org ON entity_comments(organization_id);
+CREATE INDEX IF NOT EXISTS idx_entity_comments_entity ON entity_comments(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_comments_user ON entity_comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_entity_comments_parent ON entity_comments(parent_comment_id) WHERE parent_comment_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_entity_comments_created ON entity_comments(entity_type, entity_id, created_at);
 
+DROP TRIGGER IF EXISTS update_entity_comments_updated_at ON entity_comments;
 CREATE TRIGGER update_entity_comments_updated_at BEFORE UPDATE ON entity_comments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
 -- COMMENT MENTIONS (@mentions in comments)
 -- =====================================================
 
-CREATE TABLE comment_mentions (
+CREATE TABLE IF NOT EXISTS comment_mentions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     comment_id UUID NOT NULL REFERENCES entity_comments(id) ON DELETE CASCADE,
     mentioned_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -42,14 +43,14 @@ CREATE TABLE comment_mentions (
     UNIQUE(comment_id, mentioned_user_id)
 );
 
-CREATE INDEX idx_comment_mentions_user ON comment_mentions(mentioned_user_id);
-CREATE INDEX idx_comment_mentions_comment ON comment_mentions(comment_id);
+CREATE INDEX IF NOT EXISTS idx_comment_mentions_user ON comment_mentions(mentioned_user_id);
+CREATE INDEX IF NOT EXISTS idx_comment_mentions_comment ON comment_mentions(comment_id);
 
 -- =====================================================
 -- NOTIFICATION PREFERENCES
 -- =====================================================
 
-CREATE TABLE notification_preferences (
+CREATE TABLE IF NOT EXISTS notification_preferences (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -77,17 +78,18 @@ CREATE TABLE notification_preferences (
     UNIQUE(organization_id, user_id)
 );
 
-CREATE INDEX idx_notification_preferences_user ON notification_preferences(user_id);
-CREATE INDEX idx_notification_preferences_digest ON notification_preferences(email_digest_enabled, email_digest_frequency)
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_user ON notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_digest ON notification_preferences(email_digest_enabled, email_digest_frequency)
     WHERE email_digest_enabled = TRUE;
 
+DROP TRIGGER IF EXISTS update_notification_preferences_updated_at ON notification_preferences;
 CREATE TRIGGER update_notification_preferences_updated_at BEFORE UPDATE ON notification_preferences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
 -- EMAIL DIGESTS
 -- =====================================================
 
-CREATE TABLE email_digests (
+CREATE TABLE IF NOT EXISTS email_digests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -109,15 +111,15 @@ CREATE TABLE email_digests (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_email_digests_user ON email_digests(user_id, created_at);
-CREATE INDEX idx_email_digests_status ON email_digests(status) WHERE status = 'pending';
-CREATE INDEX idx_email_digests_period ON email_digests(user_id, period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_email_digests_user ON email_digests(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_email_digests_status ON email_digests(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_email_digests_period ON email_digests(user_id, period_start, period_end);
 
 -- =====================================================
 -- SLACK INTEGRATION
 -- =====================================================
 
-CREATE TABLE slack_workspaces (
+CREATE TABLE IF NOT EXISTS slack_workspaces (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     team_id VARCHAR(50) NOT NULL, -- Slack team ID
@@ -141,13 +143,14 @@ CREATE TABLE slack_workspaces (
     UNIQUE(organization_id, team_id)
 );
 
-CREATE INDEX idx_slack_workspaces_org ON slack_workspaces(organization_id);
-CREATE INDEX idx_slack_workspaces_team ON slack_workspaces(team_id);
+CREATE INDEX IF NOT EXISTS idx_slack_workspaces_org ON slack_workspaces(organization_id);
+CREATE INDEX IF NOT EXISTS idx_slack_workspaces_team ON slack_workspaces(team_id);
 
+DROP TRIGGER IF EXISTS update_slack_workspaces_updated_at ON slack_workspaces;
 CREATE TRIGGER update_slack_workspaces_updated_at BEFORE UPDATE ON slack_workspaces FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Map notification types to Slack channels
-CREATE TABLE slack_channel_mappings (
+CREATE TABLE IF NOT EXISTS slack_channel_mappings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID NOT NULL REFERENCES slack_workspaces(id) ON DELETE CASCADE,
     notification_type VARCHAR(100) NOT NULL, -- task_assigned, comment_mention, policy_reminder, security_alert, etc.
@@ -159,12 +162,13 @@ CREATE TABLE slack_channel_mappings (
     UNIQUE(workspace_id, notification_type)
 );
 
-CREATE INDEX idx_slack_channel_mappings_workspace ON slack_channel_mappings(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_slack_channel_mappings_workspace ON slack_channel_mappings(workspace_id);
 
+DROP TRIGGER IF EXISTS update_slack_channel_mappings_updated_at ON slack_channel_mappings;
 CREATE TRIGGER update_slack_channel_mappings_updated_at BEFORE UPDATE ON slack_channel_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- User-level Slack connections (for DMs)
-CREATE TABLE slack_user_connections (
+CREATE TABLE IF NOT EXISTS slack_user_connections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -176,14 +180,14 @@ CREATE TABLE slack_user_connections (
     UNIQUE(user_id, workspace_id)
 );
 
-CREATE INDEX idx_slack_user_connections_user ON slack_user_connections(user_id);
-CREATE INDEX idx_slack_user_connections_workspace ON slack_user_connections(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_slack_user_connections_user ON slack_user_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_slack_user_connections_workspace ON slack_user_connections(workspace_id);
 
 -- =====================================================
 -- MICROSOFT TEAMS INTEGRATION
 -- =====================================================
 
-CREATE TABLE teams_tenants (
+CREATE TABLE IF NOT EXISTS teams_tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     tenant_id VARCHAR(50) NOT NULL, -- Microsoft tenant ID
@@ -209,13 +213,14 @@ CREATE TABLE teams_tenants (
     UNIQUE(organization_id, tenant_id)
 );
 
-CREATE INDEX idx_teams_tenants_org ON teams_tenants(organization_id);
-CREATE INDEX idx_teams_tenants_tenant ON teams_tenants(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_teams_tenants_org ON teams_tenants(organization_id);
+CREATE INDEX IF NOT EXISTS idx_teams_tenants_tenant ON teams_tenants(tenant_id);
 
+DROP TRIGGER IF EXISTS update_teams_tenants_updated_at ON teams_tenants;
 CREATE TRIGGER update_teams_tenants_updated_at BEFORE UPDATE ON teams_tenants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Map notification types to Teams channels
-CREATE TABLE teams_channel_mappings (
+CREATE TABLE IF NOT EXISTS teams_channel_mappings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES teams_tenants(id) ON DELETE CASCADE,
     notification_type VARCHAR(100) NOT NULL,
@@ -228,12 +233,13 @@ CREATE TABLE teams_channel_mappings (
     UNIQUE(tenant_id, notification_type)
 );
 
-CREATE INDEX idx_teams_channel_mappings_tenant ON teams_channel_mappings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_teams_channel_mappings_tenant ON teams_channel_mappings(tenant_id);
 
+DROP TRIGGER IF EXISTS update_teams_channel_mappings_updated_at ON teams_channel_mappings;
 CREATE TRIGGER update_teams_channel_mappings_updated_at BEFORE UPDATE ON teams_channel_mappings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- User-level Teams connections
-CREATE TABLE teams_user_connections (
+CREATE TABLE IF NOT EXISTS teams_user_connections (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -244,15 +250,15 @@ CREATE TABLE teams_user_connections (
     UNIQUE(user_id, tenant_id)
 );
 
-CREATE INDEX idx_teams_user_connections_user ON teams_user_connections(user_id);
-CREATE INDEX idx_teams_user_connections_tenant ON teams_user_connections(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_teams_user_connections_user ON teams_user_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_teams_user_connections_tenant ON teams_user_connections(tenant_id);
 
 -- =====================================================
 -- REAL-TIME COLLABORATION
 -- =====================================================
 
 -- Track active WebSocket sessions
-CREATE TABLE websocket_sessions (
+CREATE TABLE IF NOT EXISTS websocket_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -267,13 +273,13 @@ CREATE TABLE websocket_sessions (
     status VARCHAR(20) NOT NULL DEFAULT 'connected' -- connected, disconnected
 );
 
-CREATE INDEX idx_websocket_sessions_user ON websocket_sessions(user_id);
-CREATE INDEX idx_websocket_sessions_org ON websocket_sessions(organization_id);
-CREATE INDEX idx_websocket_sessions_token ON websocket_sessions(session_token);
-CREATE INDEX idx_websocket_sessions_heartbeat ON websocket_sessions(last_heartbeat_at) WHERE status = 'connected';
+CREATE INDEX IF NOT EXISTS idx_websocket_sessions_user ON websocket_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_websocket_sessions_org ON websocket_sessions(organization_id);
+CREATE INDEX IF NOT EXISTS idx_websocket_sessions_token ON websocket_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_websocket_sessions_heartbeat ON websocket_sessions(last_heartbeat_at) WHERE status = 'connected';
 
 -- Track presence (who's viewing what)
-CREATE TABLE collaboration_presence (
+CREATE TABLE IF NOT EXISTS collaboration_presence (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -290,12 +296,12 @@ CREATE TABLE collaboration_presence (
     UNIQUE(session_id, entity_type, entity_id)
 );
 
-CREATE INDEX idx_collaboration_presence_entity ON collaboration_presence(entity_type, entity_id);
-CREATE INDEX idx_collaboration_presence_user ON collaboration_presence(user_id);
-CREATE INDEX idx_collaboration_presence_session ON collaboration_presence(session_id);
+CREATE INDEX IF NOT EXISTS idx_collaboration_presence_entity ON collaboration_presence(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_collaboration_presence_user ON collaboration_presence(user_id);
+CREATE INDEX IF NOT EXISTS idx_collaboration_presence_session ON collaboration_presence(session_id);
 
 -- Collaboration events for real-time sync
-CREATE TABLE collaboration_events (
+CREATE TABLE IF NOT EXISTS collaboration_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     -- Event details
@@ -310,8 +316,8 @@ CREATE TABLE collaboration_events (
 );
 
 -- Partition by time for efficient cleanup
-CREATE INDEX idx_collaboration_events_org ON collaboration_events(organization_id, created_at);
-CREATE INDEX idx_collaboration_events_entity ON collaboration_events(entity_type, entity_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_collaboration_events_org ON collaboration_events(organization_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_collaboration_events_entity ON collaboration_events(entity_type, entity_id, created_at);
 
 -- =====================================================
 -- ADD NOTIFICATION TYPE COLUMN TO NOTIFICATIONS
@@ -329,6 +335,9 @@ END $$;
 -- =====================================================
 -- EMAIL DIGEST TEMPLATES
 -- =====================================================
+
+-- Add is_system column to email_templates if it doesn't exist
+ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Insert default email digest templates
 INSERT INTO email_templates (organization_id, template_type, subject, body_html, body_text, is_system)
