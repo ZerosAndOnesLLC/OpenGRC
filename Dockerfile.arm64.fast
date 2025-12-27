@@ -16,7 +16,7 @@ RUN apt-get update && apt upgrade -y && apt-get install -y --no-install-recommen
 
 # Create user
 RUN useradd -m -s /bin/bash svc_opengrc
-WORKDIR /home/svc_opsgrc
+WORKDIR /home/svc_opengrc
 
 # Copy the pre-built binary from host
 COPY ./target/release/opengrc-api ./opengrc-api
